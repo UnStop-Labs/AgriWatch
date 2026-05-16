@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+# Crops that naturally tolerate high soil moisture — skip waterlogging rule
+_HIGH_MOISTURE_CROPS = {"rice"}
+
 
 def _was_recently_alerted(active_alerts: list[dict], alert_type: str, cooldown_hours: float) -> bool:
     cutoff = datetime.utcnow() - timedelta(hours=cooldown_hours)
@@ -32,6 +35,7 @@ def evaluate(
     sm = reading["soil_moisture"]
     temp = reading["surface_temp_c"]
     field_id = reading["field_id"]
+    crop_type = reading.get("crop_type", "")
     now = reading.get("timestamp", datetime.utcnow())
 
     good_history = [r for r in history if r.get("data_quality") != "missing"]
@@ -63,7 +67,7 @@ def evaluate(
             "anomaly_cluster", "critical",
             f"Multiple simultaneous stress indicators: NDVI {ndvi:.2f}, soil moisture {sm:.1f}%, temp {temp:.1f}°C — urgent inspection required"
         ))
-        return alerts  # suppress individual alerts
+        return alerts
 
     # Rule 1: Absolute NDVI low
     if ndvi < ndvi_crit and not _was_recently_alerted(active_alerts, "ndvi_low", 6):
@@ -88,12 +92,13 @@ def evaluate(
             f"Soil moisture at {sm:.1f}% — below critical threshold, irrigation recommended immediately"
         ))
 
-    # Rule 4: Soil waterlogged
-    if sm > soil_wet and not _was_recently_alerted(active_alerts, "soil_waterlogged", 4):
-        alerts.append(make_alert(
-            "soil_waterlogged", "medium",
-            f"Soil moisture at {sm:.1f}% — waterlogging risk, check drainage systems"
-        ))
+    # Rule 4: Soil waterlogged (skip for crops that grow in high moisture)
+    if crop_type not in _HIGH_MOISTURE_CROPS:
+        if sm > soil_wet and not _was_recently_alerted(active_alerts, "soil_waterlogged", 4):
+            alerts.append(make_alert(
+                "soil_waterlogged", "medium",
+                f"Soil moisture at {sm:.1f}% — waterlogging risk, check drainage systems"
+            ))
 
     # Rule 5: Heat stress
     if temp > heat_thresh and ndvi > 0.2:

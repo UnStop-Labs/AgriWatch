@@ -107,6 +107,7 @@ def run_ingest_cycle() -> dict:
 
             reading_dict = {
                 "field_id": field.id,
+                "crop_type": field.crop_type,
                 "ndvi": reading.ndvi,
                 "soil_moisture": reading.soil_moisture,
                 "surface_temp_c": reading.surface_temp_c,

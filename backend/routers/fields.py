@@ -95,6 +95,9 @@ def delete_field(field_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{field_id}/seed", response_model=dict)
 def seed_field_endpoint(field_id: int, days: int = 30, db: Session = Depends(get_db)):
+    from services.anomaly_engine import evaluate
+    from services.scheduler import get_config
+
     field = db.get(Field, field_id)
     if not field:
         raise HTTPException(404, "Field not found")
@@ -103,7 +106,51 @@ def seed_field_endpoint(field_id: int, days: int = 30, db: Session = Depends(get
     db.flush()
 
     readings_data = seed_historical(field.id, field.crop_type, days=days)
+    thresholds = get_config()
+    alerts_generated = 0
+
+    # Insert readings one at a time and run anomaly detection in chronological order
+    # so cooldown windows work correctly across historical data
+    persisted = []
+    active_alerts_cache: List[dict] = []
+
     for rd in readings_data:
-        db.add(SatelliteReading(**rd))
+        reading_orm = SatelliteReading(**rd)
+        db.add(reading_orm)
+        db.flush()  # get the assigned id
+
+        history = [
+            {
+                "ndvi": r.ndvi,
+                "soil_moisture": r.soil_moisture,
+                "surface_temp_c": r.surface_temp_c,
+                "data_quality": r.data_quality,
+            }
+            for r in persisted[-12:]
+        ]
+
+        reading_dict = {
+            "field_id": field.id,
+            "crop_type": field.crop_type,
+            "ndvi": reading_orm.ndvi,
+            "soil_moisture": reading_orm.soil_moisture,
+            "surface_temp_c": reading_orm.surface_temp_c,
+            "data_quality": reading_orm.data_quality,
+            "timestamp": reading_orm.timestamp,
+        }
+
+        new_alerts = evaluate(reading_dict, history, active_alerts_cache, thresholds)
+        for alert_data in new_alerts:
+            alert_data["reading_id"] = reading_orm.id
+            alert_orm = Alert(**alert_data)
+            db.add(alert_orm)
+            active_alerts_cache.append({
+                "alert_type": alert_data["alert_type"],
+                "triggered_at": alert_data["triggered_at"],
+            })
+            alerts_generated += 1
+
+        persisted.append(reading_orm)
+
     db.commit()
-    return {"seeded": len(readings_data), "days": days}
+    return {"seeded": len(readings_data), "alerts_generated": alerts_generated, "days": days}

@@ -10,7 +10,7 @@ CROP_BASES = {
     "wheat": {"ndvi": 0.65, "moisture": 35.0, "temp": 22.0},
     "corn": {"ndvi": 0.75, "moisture": 40.0, "temp": 24.0},
     "soy": {"ndvi": 0.70, "moisture": 38.0, "temp": 23.0},
-    "rice": {"ndvi": 0.72, "moisture": 55.0, "temp": 26.0},
+    "rice": {"ndvi": 0.72, "moisture": 42.0, "temp": 26.0},
     "vegetables": {"ndvi": 0.60, "moisture": 45.0, "temp": 20.0},
 }
 
