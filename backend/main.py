@@ -121,14 +121,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="AgriWatch API", version="0.1.0", lifespan=lifespan)
 
-_cors_origins = os.environ.get(
-    "CORS_ORIGINS",
-    "http://localhost:5173,http://127.0.0.1:5173"
-).split(",")
+_cors_env = os.environ.get("CORS_ORIGINS", "*")
+_cors_origins = _cors_env.split(",") if _cors_env != "*" else ["*"]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
