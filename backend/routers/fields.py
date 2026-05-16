@@ -114,43 +114,46 @@ def get_field_intelligence(field_id: int, db: Session = Depends(get_db)):
     )
 
     intel = compute_field_intelligence(field, readings_30d, active_alerts)
+    recs = [Recommendation(**r) for r in intel.pop("recommendations")]
     return FieldIntelligence(
         field_id=field.id,
         field_name=field.name,
         crop_type=field.crop_type,
         area_ha=field.area_ha,
+        recommendations=recs,
         **intel,
-        recommendations=[Recommendation(**r) for r in intel["recommendations"]],
+    )
+
+
+def _build_intelligence(field, db) -> FieldIntelligence:
+    from_ts = datetime.utcnow() - timedelta(days=30)
+    readings_30d = (
+        db.query(SatelliteReading)
+        .filter(SatelliteReading.field_id == field.id, SatelliteReading.timestamp >= from_ts)
+        .order_by(SatelliteReading.timestamp.asc())
+        .all()
+    )
+    active_alerts = (
+        db.query(func.count(Alert.id))
+        .filter(Alert.field_id == field.id, Alert.acknowledged == False)
+        .scalar()
+    )
+    intel = compute_field_intelligence(field, readings_30d, active_alerts)
+    recs = [Recommendation(**r) for r in intel.pop("recommendations")]
+    return FieldIntelligence(
+        field_id=field.id,
+        field_name=field.name,
+        crop_type=field.crop_type,
+        area_ha=field.area_ha,
+        recommendations=recs,
+        **intel,
     )
 
 
 @router.get("/intelligence/dashboard", response_model=DashboardFinancials)
 def get_dashboard_financials(db: Session = Depends(get_db)):
     fields = db.query(Field).all()
-    from_ts = datetime.utcnow() - timedelta(days=30)
-    result = []
-
-    for field in fields:
-        readings_30d = (
-            db.query(SatelliteReading)
-            .filter(SatelliteReading.field_id == field.id, SatelliteReading.timestamp >= from_ts)
-            .order_by(SatelliteReading.timestamp.asc())
-            .all()
-        )
-        active_alerts = (
-            db.query(func.count(Alert.id))
-            .filter(Alert.field_id == field.id, Alert.acknowledged == False)
-            .scalar()
-        )
-        intel = compute_field_intelligence(field, readings_30d, active_alerts)
-        result.append(FieldIntelligence(
-            field_id=field.id,
-            field_name=field.name,
-            crop_type=field.crop_type,
-            area_ha=field.area_ha,
-            **intel,
-            recommendations=[Recommendation(**r) for r in intel["recommendations"]],
-        ))
+    result = [_build_intelligence(f, db) for f in fields]
 
     return DashboardFinancials(
         total_yield_forecast_tons=round(sum(f.yield_forecast_tons for f in result), 1),
