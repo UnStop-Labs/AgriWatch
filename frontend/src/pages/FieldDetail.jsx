@@ -13,7 +13,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { acknowledgeAlert, getAlerts, getField, getReadings, seedField } from "../api/client";
+import { acknowledgeAlert, getAlerts, getField, getFieldIntelligence, getReadings, seedField } from "../api/client";
 import AlertTypeIcon from "../components/AlertTypeIcon";
 import HealthBadge from "../components/HealthBadge";
 import SeverityChip from "../components/SeverityChip";
@@ -66,9 +66,12 @@ export default function FieldDetail() {
     [id]
   );
 
+  const fetchIntel = useCallback(() => getFieldIntelligence(Number(id)), [id]);
+
   const { data: field, refresh: refreshField } = usePolling(fetchField, 60000);
   const { data: readings, refresh: refreshReadings } = usePolling(fetchReadings, 60000, [range]);
   const { data: alerts, refresh: refreshAlerts } = usePolling(fetchAlerts, 30000);
+  const { data: intel, refresh: refreshIntel } = usePolling(fetchIntel, 60000);
 
   async function handleSeed() {
     setSeeding(true);
@@ -77,9 +80,16 @@ export default function FieldDetail() {
       refreshField();
       refreshReadings();
       refreshAlerts();
+      refreshIntel();
     } finally {
       setSeeding(false);
     }
+  }
+
+  function fmt$(n) {
+    if (n == null) return "—";
+    if (n >= 1000) return `$${(n / 1000).toFixed(1)}k`;
+    return `$${Math.round(n)}`;
   }
 
   async function handleAck(alertId) {
@@ -142,6 +152,94 @@ export default function FieldDetail() {
           </div>
         ))}
       </div>
+
+      {/* Intelligence Panel */}
+      {intel && (
+        <div className="space-y-4">
+          {/* Financial summary row */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { label: "Yield Forecast", value: `${intel.yield_forecast_tons}t`, sub: `${intel.yield_forecast_tons_ha} t/ha`, color: intel.yield_vs_baseline_pct >= 0 ? "text-green-600" : "text-red-600" },
+              { label: "Water Savings", value: fmt$(intel.water_savings_usd), sub: `${intel.water_savings_m3.toLocaleString()} m³`, color: "text-blue-600" },
+              { label: "Input Savings", value: fmt$(intel.fertilizer_savings_usd + intel.spray_savings_usd), sub: `${intel.fertilizer_savings_kg} kg fertilizer`, color: "text-amber-600" },
+              { label: "Total ROI", value: fmt$(intel.total_savings_usd), sub: "this season", color: "text-purple-600" },
+            ].map(({ label, value, sub, color }) => (
+              <div key={label} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                <p className="text-xs text-gray-400 mb-1">{label}</p>
+                <p className={`text-xl font-bold ${color}`}>{value}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Harvest timing */}
+          {intel.harvest_status !== "unknown" && (
+            <div className={`rounded-xl border px-5 py-4 flex items-center justify-between ${
+              intel.harvest_status === "overdue" ? "bg-red-50 border-red-300" :
+              intel.harvest_status === "imminent" ? "bg-orange-50 border-orange-300" :
+              "bg-green-50 border-green-200"
+            }`}>
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🌾</span>
+                <div>
+                  <p className="font-semibold text-gray-900 text-sm">
+                    {intel.harvest_status === "overdue" && `Harvest overdue by ${Math.abs(intel.days_to_harvest)} days`}
+                    {intel.harvest_status === "imminent" && `Harvest in ${intel.days_to_harvest} days — prepare now`}
+                    {intel.harvest_status === "upcoming" && `Harvest in ${intel.days_to_harvest} days`}
+                    {intel.harvest_status === "on_track" && `Harvest in ${intel.days_to_harvest} days — on track`}
+                  </p>
+                  {intel.harvest_due && (
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Expected: {new Date(intel.harvest_due).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+              {intel.harvest_status === "overdue" && (
+                <span className="text-xs bg-red-500 text-white px-3 py-1 rounded-full font-bold">ACTION REQUIRED</span>
+              )}
+            </div>
+          )}
+
+          {/* Recommendations */}
+          {intel.recommendations?.length > 0 && (
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
+              <div className="px-6 py-4 border-b border-gray-100">
+                <h3 className="font-semibold text-gray-800">AI Recommendations</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Prioritized by financial impact</p>
+              </div>
+              <ul className="divide-y divide-gray-50">
+                {intel.recommendations.map((r, i) => (
+                  <li key={i} className="px-6 py-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            r.priority === "high" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"
+                          }`}>
+                            {r.priority}
+                          </span>
+                          <span className="text-xs text-gray-400 capitalize">{r.type.replace("_", " ")}</span>
+                        </div>
+                        <p className="text-sm font-semibold text-gray-900">{r.title}</p>
+                        <p className="text-xs text-gray-500 mt-1">{r.reason}</p>
+                        <div className="mt-2 flex items-center gap-2">
+                          <span className="text-xs">→</span>
+                          <p className="text-xs font-medium text-green-700">{r.action}</p>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-base font-bold text-green-600">{fmt$(r.financial_impact_usd)}</p>
+                        <p className="text-xs text-gray-400">potential</p>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Time range selector */}
       <div className="flex items-center gap-2">

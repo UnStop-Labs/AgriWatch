@@ -58,6 +58,12 @@ export default function Navbar() {
                 </span>
               )}
             </Link>
+            <Link
+              to="/onboarding"
+              className="ml-2 px-4 py-2 bg-white text-green-800 rounded-md text-sm font-semibold hover:bg-green-50 transition-colors"
+            >
+              + Add Field
+            </Link>
           </div>
         </div>
       </div>

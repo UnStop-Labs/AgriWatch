@@ -1,26 +1,36 @@
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Alerts from "./pages/Alerts";
 import Dashboard from "./pages/Dashboard";
 import FieldDetail from "./pages/FieldDetail";
 import FieldMap from "./pages/FieldMap";
 import Fields from "./pages/Fields";
+import Onboarding from "./pages/Onboarding";
+
+function Layout() {
+  const { pathname } = useLocation();
+  const hideNav = pathname === "/onboarding";
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {!hideNav && <Navbar />}
+      <main>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/map" element={<FieldMap />} />
+          <Route path="/fields" element={<Fields />} />
+          <Route path="/fields/:id" element={<FieldDetail />} />
+          <Route path="/alerts" element={<Alerts />} />
+          <Route path="/onboarding" element={<Onboarding />} />
+        </Routes>
+      </main>
+    </div>
+  );
+}
 
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-gray-50">
-        <Navbar />
-        <main>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/map" element={<FieldMap />} />
-            <Route path="/fields" element={<Fields />} />
-            <Route path="/fields/:id" element={<FieldDetail />} />
-            <Route path="/alerts" element={<Alerts />} />
-          </Routes>
-        </main>
-      </div>
+      <Layout />
     </BrowserRouter>
   );
 }

@@ -38,3 +38,8 @@ export const getSystemHealth = () => api.get("/api/system/health").then((r) => r
 export const getSystemConfig = () => api.get("/api/system/config").then((r) => r.data).catch(normalize);
 export const updateSystemConfig = (body) =>
   api.put("/api/system/config", body).then((r) => r.data).catch(normalize);
+
+export const getFieldIntelligence = (id) =>
+  api.get(`/api/fields/${id}/intelligence`).then((r) => r.data).catch(normalize);
+export const getDashboardFinancials = () =>
+  api.get("/api/fields/intelligence/dashboard").then((r) => r.data).catch(normalize);

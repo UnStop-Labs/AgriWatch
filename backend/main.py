@@ -14,11 +14,22 @@ from services.satellite_mock import seed_historical
 
 logging.basicConfig(level=logging.INFO)
 
+def _days_ago(n):
+    from datetime import timedelta
+    return datetime.utcnow() - timedelta(days=n)
+
+
 DEFAULT_FIELDS = [
     {
         "name": "North Wheat Block",
         "crop_type": "wheat",
         "area_ha": 45.0,
+        "planting_date": _days_ago(80),
+        "irrigation_method": "drip",
+        "water_cost_per_m3": 0.45,
+        "baseline_water_m3_ha": 4800,
+        "baseline_fertilizer_kg_ha": 190,
+        "baseline_spray_usd_ha": 140,
         "geojson": json.dumps({
             "type": "Feature",
             "properties": {},
@@ -38,6 +49,12 @@ DEFAULT_FIELDS = [
         "name": "East Corn Field",
         "crop_type": "corn",
         "area_ha": 62.0,
+        "planting_date": _days_ago(55),
+        "irrigation_method": "sprinkler",
+        "water_cost_per_m3": 0.50,
+        "baseline_water_m3_ha": 5500,
+        "baseline_fertilizer_kg_ha": 230,
+        "baseline_spray_usd_ha": 160,
         "geojson": json.dumps({
             "type": "Feature",
             "properties": {},
@@ -57,6 +74,12 @@ DEFAULT_FIELDS = [
         "name": "South Soybean Plot",
         "crop_type": "soy",
         "area_ha": 38.0,
+        "planting_date": _days_ago(40),
+        "irrigation_method": "drip",
+        "water_cost_per_m3": 0.45,
+        "baseline_water_m3_ha": 4200,
+        "baseline_fertilizer_kg_ha": 130,
+        "baseline_spray_usd_ha": 120,
         "geojson": json.dumps({
             "type": "Feature",
             "properties": {},
@@ -76,6 +99,12 @@ DEFAULT_FIELDS = [
         "name": "West Rice Paddy",
         "crop_type": "rice",
         "area_ha": 28.0,
+        "planting_date": _days_ago(100),
+        "irrigation_method": "flood",
+        "water_cost_per_m3": 0.30,
+        "baseline_water_m3_ha": 13000,
+        "baseline_fertilizer_kg_ha": 210,
+        "baseline_spray_usd_ha": 180,
         "geojson": json.dumps({
             "type": "Feature",
             "properties": {},

@@ -15,6 +15,14 @@ class Field(Base):
     geojson: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
+    # Onboarding fields for ROI calculations
+    planting_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    irrigation_method: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    water_cost_per_m3: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    baseline_water_m3_ha: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    baseline_fertilizer_kg_ha: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    baseline_spray_usd_ha: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
     readings: Mapped[List["SatelliteReading"]] = relationship(
         back_populates="field", cascade="all, delete-orphan"
     )

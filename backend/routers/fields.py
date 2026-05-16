@@ -9,8 +9,9 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models import Alert, Field, SatelliteReading
-from schemas import FieldCreate, FieldRead, FieldSummary
+from schemas import DashboardFinancials, FieldCreate, FieldIntelligence, FieldRead, FieldSummary, Recommendation
 from services.anomaly_engine import compute_health_status
+from services.intelligence import compute_field_intelligence
 from services.satellite_mock import seed_historical
 
 router = APIRouter(prefix="/api/fields", tags=["fields"])
@@ -91,6 +92,74 @@ def delete_field(field_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Field not found")
     db.delete(field)
     db.commit()
+
+
+@router.get("/{field_id}/intelligence", response_model=FieldIntelligence)
+def get_field_intelligence(field_id: int, db: Session = Depends(get_db)):
+    field = db.get(Field, field_id)
+    if not field:
+        raise HTTPException(404, "Field not found")
+
+    from_ts = datetime.utcnow() - timedelta(days=30)
+    readings_30d = (
+        db.query(SatelliteReading)
+        .filter(SatelliteReading.field_id == field_id, SatelliteReading.timestamp >= from_ts)
+        .order_by(SatelliteReading.timestamp.asc())
+        .all()
+    )
+    active_alerts = (
+        db.query(func.count(Alert.id))
+        .filter(Alert.field_id == field_id, Alert.acknowledged == False)
+        .scalar()
+    )
+
+    intel = compute_field_intelligence(field, readings_30d, active_alerts)
+    return FieldIntelligence(
+        field_id=field.id,
+        field_name=field.name,
+        crop_type=field.crop_type,
+        area_ha=field.area_ha,
+        **intel,
+        recommendations=[Recommendation(**r) for r in intel["recommendations"]],
+    )
+
+
+@router.get("/intelligence/dashboard", response_model=DashboardFinancials)
+def get_dashboard_financials(db: Session = Depends(get_db)):
+    fields = db.query(Field).all()
+    from_ts = datetime.utcnow() - timedelta(days=30)
+    result = []
+
+    for field in fields:
+        readings_30d = (
+            db.query(SatelliteReading)
+            .filter(SatelliteReading.field_id == field.id, SatelliteReading.timestamp >= from_ts)
+            .order_by(SatelliteReading.timestamp.asc())
+            .all()
+        )
+        active_alerts = (
+            db.query(func.count(Alert.id))
+            .filter(Alert.field_id == field.id, Alert.acknowledged == False)
+            .scalar()
+        )
+        intel = compute_field_intelligence(field, readings_30d, active_alerts)
+        result.append(FieldIntelligence(
+            field_id=field.id,
+            field_name=field.name,
+            crop_type=field.crop_type,
+            area_ha=field.area_ha,
+            **intel,
+            recommendations=[Recommendation(**r) for r in intel["recommendations"]],
+        ))
+
+    return DashboardFinancials(
+        total_yield_forecast_tons=round(sum(f.yield_forecast_tons for f in result), 1),
+        total_water_savings_usd=sum(f.water_savings_usd for f in result),
+        total_fertilizer_savings_usd=sum(f.fertilizer_savings_usd for f in result),
+        total_spray_savings_usd=sum(f.spray_savings_usd for f in result),
+        total_savings_usd=sum(f.total_savings_usd for f in result),
+        fields=result,
+    )
 
 
 @router.post("/{field_id}/seed", response_model=dict)
