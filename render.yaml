@@ -7,5 +7,5 @@ services:
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: CORS_ORIGINS
-        value: https://agriwatch.vercel.app,http://localhost:5173
+        value: https://frontend-dusky-alpha-60.vercel.app,https://frontend-guc4ewx5x-ronezra3s-projects.vercel.app,http://localhost:5173
     healthCheckPath: /
