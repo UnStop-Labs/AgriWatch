@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { getAlerts } from "../api/client";
+import { useLang } from "../context/LangContext";
 
 export default function Navbar() {
   const { pathname } = useLocation();
+  const { t, lang, setLanguage } = useLang();
   const [unread, setUnread] = useState(0);
 
   useEffect(() => {
@@ -12,8 +14,8 @@ export default function Navbar() {
         setUnread(a?.length ?? 0)
       );
     load();
-    const t = setInterval(load, 30000);
-    return () => clearInterval(t);
+    const timer = setInterval(load, 30000);
+    return () => clearInterval(timer);
   }, []);
 
   const link = (to, label) => (
@@ -35,15 +37,16 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-2">
             <span className="text-2xl">🌾</span>
-            <span className="text-white font-bold text-xl tracking-tight">
-              AgriWatch
-            </span>
+            <span className="text-white font-bold text-xl tracking-tight">AgriWatch</span>
           </div>
-          <div className="flex items-center gap-1">
-            {link("/", "Dashboard")}
-            {link("/map", "Field Map")}
-            {link("/irrigation", "💧 Irrigation")}
-            {link("/fields", "Fields")}
+
+          <div className="flex items-center gap-1 flex-wrap">
+            {link("/", t("nav_dashboard"))}
+            {link("/map", t("nav_map"))}
+            {link("/irrigation", t("nav_irrigation"))}
+            {link("/fields", t("nav_fields"))}
+
+            {/* Alerts with badge */}
             <Link
               to="/alerts"
               className={`relative px-3 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -52,18 +55,30 @@ export default function Navbar() {
                   : "text-green-100 hover:bg-green-700 hover:text-white"
               }`}
             >
-              Alerts
+              {t("nav_alerts")}
               {unread > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
                   {unread > 99 ? "99+" : unread}
                 </span>
               )}
             </Link>
+
+            {link("/settings", t("nav_settings"))}
+
+            {/* Language toggle */}
+            <button
+              onClick={() => setLanguage(lang === "en" ? "th" : "en")}
+              className="ml-2 px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white rounded-md text-sm font-semibold transition-colors"
+              title="Switch language"
+            >
+              {lang === "en" ? "🇹🇭 TH" : "🇬🇧 EN"}
+            </button>
+
             <Link
               to="/onboarding"
-              className="ml-2 px-4 py-2 bg-white text-green-800 rounded-md text-sm font-semibold hover:bg-green-50 transition-colors"
+              className="ml-1 px-4 py-2 bg-white text-green-800 rounded-md text-sm font-semibold hover:bg-green-50 transition-colors"
             >
-              + Add Field
+              {t("nav_add_field")}
             </Link>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import Navbar from "./components/Navbar";
+import { LangProvider } from "./context/LangContext";
 import Alerts from "./pages/Alerts";
 import Dashboard from "./pages/Dashboard";
 import FieldDetail from "./pages/FieldDetail";
@@ -7,6 +8,7 @@ import FieldMap from "./pages/FieldMap";
 import Fields from "./pages/Fields";
 import IrrigationAnalysis from "./pages/IrrigationAnalysis";
 import Onboarding from "./pages/Onboarding";
+import Settings from "./pages/Settings";
 
 function Layout() {
   const { pathname } = useLocation();
@@ -23,6 +25,7 @@ function Layout() {
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/irrigation" element={<IrrigationAnalysis />} />
+          <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>
     </div>
@@ -32,7 +35,9 @@ function Layout() {
 export default function App() {
   return (
     <BrowserRouter>
-      <Layout />
+      <LangProvider>
+        <Layout />
+      </LangProvider>
     </BrowserRouter>
   );
 }

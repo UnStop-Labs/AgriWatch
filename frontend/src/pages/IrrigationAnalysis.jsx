@@ -1,22 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { GeoJSON, MapContainer, TileLayer, useMap } from "react-leaflet";
 import { analyzeIrrigation } from "../api/client";
+import { useLang } from "../context/LangContext";
 
-const REFRESH_INTERVAL = 30; // seconds
+const REFRESH_INTERVAL = 30;
+const RAI_TO_HA = 0.16; // 1 rai = 1,600 m² = 0.16 ha
+const STATUS_COLORS = { critical: "#dc2626", dry: "#f97316", optimal: "#22c55e", wet: "#3b82f6" };
 
-const STATUS_META = {
-  critical: { color: "#dc2626", label: "Irrigate Now",     icon: "🔴" },
-  dry:      { color: "#f97316", label: "Needs Water",      icon: "🟠" },
-  optimal:  { color: "#22c55e", label: "Optimal",          icon: "🟢" },
-  wet:      { color: "#3b82f6", label: "Reduce Irrigation",icon: "🔵" },
-};
-
-// Thai demo presets
+// Presets in rai
 const PRESETS = [
-  { label: "Chiang Rai Rice",    lat: 19.921,  lng: 99.832,  area: 52 },
-  { label: "Chiang Mai Corn",    lat: 18.791,  lng: 98.970,  area: 68 },
-  { label: "Suphan Buri Soy",    lat: 14.471,  lng: 100.131, area: 41 },
-  { label: "Nakhon Pathom Veg",  lat: 13.823,  lng: 100.062, area: 24 },
+  { label: "Chiang Rai Rice",    lat: 19.921,  lng: 99.832,  areaRai: 325 },
+  { label: "Chiang Mai Corn",    lat: 18.791,  lng: 98.970,  areaRai: 425 },
+  { label: "Suphan Buri Soy",    lat: 14.471,  lng: 100.131, areaRai: 256 },
+  { label: "Nakhon Pathom Veg",  lat: 13.823,  lng: 100.062, areaRai: 150 },
 ];
 
 function FlyTo({ target }) {
@@ -38,9 +34,10 @@ function Ring() {
 }
 
 export default function IrrigationAnalysis() {
+  const { t } = useLang();
   const [lat, setLat]   = useState("");
   const [lng, setLng]   = useState("");
-  const [area, setArea] = useState("10");
+  const [areaRai, setAreaRai] = useState("10"); // stored in rai
   const [data, setData]           = useState(null);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState(null);
@@ -81,24 +78,26 @@ export default function IrrigationAnalysis() {
     e.preventDefault();
     const latN = parseFloat(lat);
     const lngN = parseFloat(lng);
-    const areaN = parseFloat(area) || 10;
+    const raiN = parseFloat(areaRai) || 10;
+    const haN  = raiN * RAI_TO_HA;
     if (isNaN(latN) || isNaN(lngN)) return;
 
-    activeParams.current = { lat: latN, lng: lngN, area: areaN };
+    activeParams.current = { lat: latN, lng: lngN, area: haN, areaRai: raiN };
     setFlyTarget({ lat: latN, lng: lngN });
-    doAnalyze(latN, lngN, areaN);
-    startAutoRefresh(latN, lngN, areaN);
+    doAnalyze(latN, lngN, haN);
+    startAutoRefresh(latN, lngN, haN);
   }
 
   function handlePreset(p) {
+    const haN = p.areaRai * RAI_TO_HA;
     setLat(String(p.lat));
     setLng(String(p.lng));
-    setArea(String(p.area));
+    setAreaRai(String(p.areaRai));
     setActivePreset(p.label);
-    activeParams.current = { lat: p.lat, lng: p.lng, area: p.area };
+    activeParams.current = { lat: p.lat, lng: p.lng, area: haN, areaRai: p.areaRai };
     setFlyTarget({ lat: p.lat, lng: p.lng });
-    doAnalyze(p.lat, p.lng, p.area);
-    startAutoRefresh(p.lat, p.lng, p.area);
+    doAnalyze(p.lat, p.lng, haN);
+    startAutoRefresh(p.lat, p.lng, haN);
   }
 
   useEffect(() => () => {
@@ -115,8 +114,8 @@ export default function IrrigationAnalysis() {
       <div className="bg-white border-b border-gray-200 px-5 py-3 space-y-3 shrink-0">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-lg font-bold text-gray-900">🛰 Live Irrigation Analysis</h1>
-            <p className="text-xs text-gray-400">Enter any plantation coordinates — map updates every {REFRESH_INTERVAL}s</p>
+            <h1 className="text-lg font-bold text-gray-900">{t("irr_title")}</h1>
+            <p className="text-xs text-gray-400">{t("irr_subtitle", { n: REFRESH_INTERVAL })}</p>
           </div>
 
           {/* Satellite / Street toggle */}
@@ -125,13 +124,13 @@ export default function IrrigationAnalysis() {
               onClick={() => setSatellite(true)}
               className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${satellite ? "bg-white shadow text-gray-900" : "text-gray-500"}`}
             >
-              🛰 Satellite
+              {t("irr_satellite")}
             </button>
             <button
               onClick={() => setSatellite(false)}
               className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${!satellite ? "bg-white shadow text-gray-900" : "text-gray-500"}`}
             >
-              🗺 Street
+              {t("irr_street")}
             </button>
           </div>
         </div>
@@ -139,7 +138,7 @@ export default function IrrigationAnalysis() {
         {/* Input form */}
         <form onSubmit={handleSubmit} className="flex items-end gap-3 flex-wrap">
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Latitude</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1">{t("irr_lat")}</label>
             <input
               type="number" step="any" placeholder="e.g. 18.791"
               value={lat} onChange={(e) => setLat(e.target.value)} required
@@ -147,7 +146,7 @@ export default function IrrigationAnalysis() {
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Longitude</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1">{t("irr_lng")}</label>
             <input
               type="number" step="any" placeholder="e.g. 98.970"
               value={lng} onChange={(e) => setLng(e.target.value)} required
@@ -155,11 +154,11 @@ export default function IrrigationAnalysis() {
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Area (ha)</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1">{t("irr_area")}</label>
             <input
-              type="number" min="1" max="500" step="1" placeholder="10"
-              value={area} onChange={(e) => setArea(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-24 focus:ring-2 focus:ring-green-500 focus:outline-none"
+              type="number" min="1" max="3000" step="1" placeholder="10"
+              value={areaRai} onChange={(e) => setAreaRai(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-28 focus:ring-2 focus:ring-green-500 focus:outline-none"
             />
           </div>
           <button
@@ -167,7 +166,7 @@ export default function IrrigationAnalysis() {
             className="flex items-center gap-2 px-5 py-2 bg-green-700 text-white rounded-lg text-sm font-semibold hover:bg-green-800 disabled:opacity-50 transition-colors"
           >
             {loading ? <Ring /> : "🛰"}
-            {loading ? "Analyzing…" : "Analyze Field"}
+            {loading ? t("irr_analyzing") : t("irr_analyze")}
           </button>
 
           {/* Live refresh status */}
@@ -178,7 +177,7 @@ export default function IrrigationAnalysis() {
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
               </span>
               <span className="text-xs text-gray-500">
-                {loading ? "Refreshing…" : `Next refresh in ${countdown}s`}
+                {loading ? t("irr_refreshing") : t("irr_next_refresh", { n: countdown })}
               </span>
             </div>
           )}
@@ -189,14 +188,14 @@ export default function IrrigationAnalysis() {
               href="https://maps.google.com" target="_blank" rel="noopener noreferrer"
               className="text-green-600 hover:underline"
             >
-              Google Maps → right-click → "What's here?"
+              {t("irr_gmaps_hint")}
             </a>
           </p>
         </form>
 
         {/* Thai farm presets */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-gray-400">Thai farms:</span>
+          <span className="text-xs text-gray-400">{t("irr_thai_farms")}</span>
           {PRESETS.map((p) => (
             <button
               key={p.label}
@@ -272,8 +271,8 @@ export default function IrrigationAnalysis() {
           <div className="absolute inset-0 bg-black/25 flex items-center justify-center z-[1000]">
             <div className="bg-white rounded-2xl px-8 py-6 shadow-2xl flex flex-col items-center gap-3">
               <Ring />
-              <p className="text-sm font-semibold text-gray-700">Fetching satellite data…</p>
-              <p className="text-xs text-gray-400">Analyzing {area} ha field</p>
+              <p className="text-sm font-semibold text-gray-700">{t("irr_fetching")}</p>
+              <p className="text-xs text-gray-400">{t("irr_analyzing_n", { n: areaRai })}</p>
             </div>
           </div>
         )}
@@ -282,7 +281,7 @@ export default function IrrigationAnalysis() {
         {loading && data && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] bg-white/90 backdrop-blur rounded-full px-4 py-1.5 shadow flex items-center gap-2 text-xs text-gray-600">
             <Ring />
-            Refreshing satellite data…
+            {t("irr_refreshing")}
           </div>
         )}
 
@@ -298,13 +297,9 @@ export default function IrrigationAnalysis() {
           <div className="absolute inset-0 flex items-center justify-center z-[500] pointer-events-none">
             <div className="bg-white/95 backdrop-blur rounded-2xl shadow-xl border border-gray-200 p-8 text-center max-w-sm mx-4">
               <span className="text-5xl block mb-3">🛰️</span>
-              <h2 className="text-lg font-bold text-gray-900 mb-2">Enter Your Plantation Coordinates</h2>
-              <p className="text-sm text-gray-500 mb-4">
-                The map will show a real-time irrigation heatmap of your field — updated every {REFRESH_INTERVAL} seconds.
-              </p>
-              <p className="text-xs text-gray-400">
-                Or click one of the Thai farm presets above to see a live demo.
-              </p>
+              <h2 className="text-lg font-bold text-gray-900 mb-2">{t("irr_empty_title")}</h2>
+              <p className="text-sm text-gray-500 mb-4">{t("irr_empty_desc", { n: REFRESH_INTERVAL })}</p>
+              <p className="text-xs text-gray-400">{t("irr_empty_hint")}</p>
             </div>
           </div>
         )}
@@ -313,8 +308,8 @@ export default function IrrigationAnalysis() {
         {data && (
           <div className="absolute bottom-5 left-5 z-[1000] bg-white/96 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 p-4 w-64">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Field Analysis</p>
-              <p className="text-xs text-gray-400">{data.summary.area_ha} ha</p>
+              <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">{t("irr_summary_title")}</p>
+              <p className="text-xs text-gray-400">{activeParams.current?.areaRai ?? data.summary.area_ha} {t("irr_area")}</p>
             </div>
             <div className="space-y-2.5">
               {Object.entries(STATUS_META).map(([key, meta]) => {
@@ -336,7 +331,7 @@ export default function IrrigationAnalysis() {
               })}
             </div>
             <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between">
-              <span className="text-xs text-gray-400">Last updated</span>
+              <span className="text-xs text-gray-400">{t("irr_last_updated")}</span>
               <span className="text-xs font-medium text-gray-600">
                 {lastRefresh?.toLocaleTimeString()}
               </span>
@@ -346,19 +341,19 @@ export default function IrrigationAnalysis() {
 
         {/* ── Legend (top-right) ── */}
         <div className="absolute top-4 right-4 z-[1000] bg-white/96 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200 p-3">
-          <p className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-2">Irrigation Need</p>
-          {Object.values(STATUS_META).map(({ color, label, icon }) => (
-            <div key={label} className="flex items-center gap-2 text-xs text-gray-600 mb-1.5 last:mb-0">
-              <span
-                className="w-3.5 h-3.5 rounded-sm shrink-0"
-                style={{ background: color, opacity: 0.75 }}
-              />
-              <span>{icon} {label}</span>
+          <p className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-2">{t("irr_legend_title")}</p>
+          {[
+            { color: "#dc2626", key: "critical" },
+            { color: "#f97316", key: "dry" },
+            { color: "#22c55e", key: "optimal" },
+            { color: "#3b82f6", key: "wet" },
+          ].map(({ color, key }) => (
+            <div key={key} className="flex items-center gap-2 text-xs text-gray-600 mb-1.5 last:mb-0">
+              <span className="w-3.5 h-3.5 rounded-sm shrink-0" style={{ background: color, opacity: 0.75 }} />
+              <span>{t(`irr_${key}`)}</span>
             </div>
           ))}
-          <p className="text-xs text-gray-400 mt-2 pt-2 border-t border-gray-100">
-            Click any cell for details
-          </p>
+          <p className="text-xs text-gray-400 mt-2 pt-2 border-t border-gray-100">{t("irr_click_cell")}</p>
         </div>
       </div>
     </div>

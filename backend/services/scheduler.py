@@ -8,6 +8,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from database import SessionLocal
 from models import Alert, Field, SatelliteReading
 from services.anomaly_engine import evaluate
+from services.line_notify import send_alert
 from services.satellite_mock import generate_reading
 
 logger = logging.getLogger(__name__)
@@ -119,6 +120,14 @@ def run_ingest_cycle() -> dict:
                 alert_data["reading_id"] = reading.id
                 db.add(Alert(**alert_data))
                 alerts_generated += 1
+                # Fire LINE notification for high/critical alerts
+                if alert_data.get("severity") in ("critical", "high"):
+                    send_alert(
+                        field_name=field.name,
+                        alert_type=alert_data["alert_type"],
+                        severity=alert_data["severity"],
+                        message=alert_data["message"],
+                    )
 
         db.commit()
         logger.info(
