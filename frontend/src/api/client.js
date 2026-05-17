@@ -43,3 +43,6 @@ export const getFieldIntelligence = (id) =>
   api.get(`/api/fields/${id}/intelligence`).then((r) => r.data).catch(normalize);
 export const getDashboardFinancials = () =>
   api.get("/api/fields/intelligence/dashboard").then((r) => r.data).catch(normalize);
+
+export const analyzeIrrigation = (lat, lng, area_ha = 10) =>
+  api.get("/api/irrigation/analyze", { params: { lat, lng, area_ha } }).then((r) => r.data).catch(normalize);

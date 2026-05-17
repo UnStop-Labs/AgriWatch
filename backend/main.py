@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from database import SessionLocal, engine
 from models import Base, Field, SatelliteReading
-from routers import alerts, fields, readings, system
+from routers import alerts, fields, irrigation, readings, system
 from services import scheduler
 from services.satellite_mock import seed_historical
 
@@ -170,6 +170,7 @@ app.include_router(fields.router)
 app.include_router(readings.router)
 app.include_router(alerts.router)
 app.include_router(system.router)
+app.include_router(irrigation.router)
 
 
 @app.get("/")

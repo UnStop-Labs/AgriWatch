@@ -42,6 +42,7 @@ export default function Navbar() {
           <div className="flex items-center gap-1">
             {link("/", "Dashboard")}
             {link("/map", "Field Map")}
+            {link("/irrigation", "💧 Irrigation")}
             {link("/fields", "Fields")}
             <Link
               to="/alerts"
