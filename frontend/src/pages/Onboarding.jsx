@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createField, seedField } from "../api/client";
+import { useLang } from "../context/LangContext";
 
 const CROP_TYPES = ["wheat", "corn", "soy", "rice", "vegetables"];
 const IRRIGATION_METHODS = [
@@ -10,12 +11,14 @@ const IRRIGATION_METHODS = [
   { value: "none", label: "Rain-fed", desc: "No artificial irrigation" },
 ];
 
-const STEPS = [
-  { id: 1, label: "Field Info", icon: "📍" },
-  { id: 2, label: "Crop Setup", icon: "🌱" },
-  { id: 3, label: "Irrigation", icon: "💧" },
-  { id: 4, label: "Baseline", icon: "📊" },
-];
+function getSteps(t) {
+  return [
+    { id: 1, label: t("ob_step_field"), icon: "📍" },
+    { id: 2, label: t("ob_step_crop"), icon: "🌱" },
+    { id: 3, label: t("ob_step_irr"), icon: "💧" },
+    { id: 4, label: t("ob_step_baseline"), icon: "📊" },
+  ];
+}
 
 const DEFAULT_GEOJSON = JSON.stringify({
   type: "Feature",
@@ -28,10 +31,10 @@ const DEFAULT_GEOJSON = JSON.stringify({
   },
 });
 
-function StepIndicator({ current }) {
+function StepIndicator({ current, steps }) {
   return (
     <div className="flex items-center justify-center gap-0 mb-10">
-      {STEPS.map((s, i) => (
+      {steps.map((s, i) => (
         <div key={s.id} className="flex items-center">
           <div className="flex flex-col items-center">
             <div
@@ -53,7 +56,7 @@ function StepIndicator({ current }) {
               {s.label}
             </span>
           </div>
-          {i < STEPS.length - 1 && (
+          {i < steps.length - 1 && (
             <div
               className={`w-16 h-0.5 mx-1 mb-5 transition-all ${
                 s.id < current ? "bg-green-600" : "bg-gray-200"
@@ -86,6 +89,7 @@ function Input({ ...props }) {
 
 export default function Onboarding() {
   const navigate = useNavigate();
+  const { t } = useLang();
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -113,6 +117,8 @@ export default function Onboarding() {
     3: form.irrigation_method,
     4: true,
   }[step];
+
+  const steps = getSteps(t);
 
   async function handleFinish() {
     setSaving(true);
@@ -148,33 +154,33 @@ export default function Onboarding() {
       <div className="w-full max-w-lg">
         <div className="text-center mb-8">
           <span className="text-4xl">🌾</span>
-          <h1 className="text-2xl font-bold text-gray-900 mt-3">Add a New Field</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mt-3">{t("ob_title")}</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Takes 2 minutes · Generates instant ROI analysis
+            {t("ob_subtitle")}
           </p>
         </div>
 
-        <StepIndicator current={step} />
+        <StepIndicator current={step} steps={steps} />
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
           {/* Step 1 — Field Info */}
           {step === 1 && (
             <div className="space-y-5">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Field Information</h2>
-                <p className="text-sm text-gray-500 mt-1">Basic details to identify and size your field.</p>
+                <h2 className="text-lg font-semibold text-gray-900">{t("ob_field_info_title")}</h2>
+                <p className="text-sm text-gray-500 mt-1">{t("ob_field_info_sub")}</p>
               </div>
               <div>
-                <Label>Field Name</Label>
+                <Label>{t("ob_name")}</Label>
                 <Input
-                  placeholder="e.g. North Wheat Block"
+                  placeholder={t("ob_name_placeholder")}
                   value={form.name}
                   onChange={(e) => set("name", e.target.value)}
                 />
               </div>
               <div>
-                <Label hint="Used to calculate total yield, water usage, and ROI">
-                  Field Size (hectares)
+                <Label hint={t("ob_area_hint")}>
+                  {t("ob_area")}
                 </Label>
                 <Input
                   type="number"
@@ -186,7 +192,7 @@ export default function Onboarding() {
                 />
                 {form.area_ha && (
                   <p className="text-xs text-gray-400 mt-1">
-                    ≈ {(Number(form.area_ha) * 2.47).toFixed(1)} acres
+                    {t("ob_acres_hint", { n: (Number(form.area_ha) * 2.47).toFixed(1) })}
                   </p>
                 )}
               </div>
@@ -197,13 +203,13 @@ export default function Onboarding() {
           {step === 2 && (
             <div className="space-y-5">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Crop Setup</h2>
+                <h2 className="text-lg font-semibold text-gray-900">{t("ob_crop_title")}</h2>
                 <p className="text-sm text-gray-500 mt-1">
-                  Used to forecast yield, calculate harvest timing, and set NDVI benchmarks.
+                  {t("ob_crop_sub")}
                 </p>
               </div>
               <div>
-                <Label>Crop Type</Label>
+                <Label>{t("ob_crop_type")}</Label>
                 <div className="grid grid-cols-3 gap-2">
                   {CROP_TYPES.map((c) => (
                     <button
@@ -221,8 +227,8 @@ export default function Onboarding() {
                 </div>
               </div>
               <div>
-                <Label hint="Used to calculate days to harvest and flag overdue fields">
-                  Planting Date
+                <Label hint={t("ob_planting_hint")}>
+                  {t("ob_planting")}
                 </Label>
                 <Input
                   type="date"
@@ -238,13 +244,13 @@ export default function Onboarding() {
           {step === 3 && (
             <div className="space-y-5">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Irrigation Setup</h2>
+                <h2 className="text-lg font-semibold text-gray-900">{t("ob_irr_title")}</h2>
                 <p className="text-sm text-gray-500 mt-1">
-                  Used to calculate water savings and cost impact of optimization.
+                  {t("ob_irr_sub")}
                 </p>
               </div>
               <div>
-                <Label>Irrigation Method</Label>
+                <Label>{t("ob_irr_method")}</Label>
                 <div className="space-y-2">
                   {IRRIGATION_METHODS.map((m) => (
                     <button
@@ -263,8 +269,8 @@ export default function Onboarding() {
                 </div>
               </div>
               <div>
-                <Label hint="Optional — improves water savings dollar calculation">
-                  Water Cost (USD per m³) <span className="text-gray-400 font-normal">optional</span>
+                <Label hint={t("ob_water_cost_hint")}>
+                  {t("ob_water_cost")} <span className="text-gray-400 font-normal">{t("ob_optional")}</span>
                 </Label>
                 <Input
                   type="number"
@@ -282,14 +288,14 @@ export default function Onboarding() {
           {step === 4 && (
             <div className="space-y-5">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Current Baseline Usage</h2>
+                <h2 className="text-lg font-semibold text-gray-900">{t("ob_baseline_title")}</h2>
                 <p className="text-sm text-gray-500 mt-1">
-                  All optional — but the more you provide, the more accurate your ROI calculations.
+                  {t("ob_baseline_sub")}
                 </p>
               </div>
               <div>
-                <Label hint="Your typical seasonal water use before optimization">
-                  Water Usage (m³ / ha / season) <span className="text-gray-400 font-normal">optional</span>
+                <Label hint={t("ob_water_usage_hint")}>
+                  {t("ob_water_usage")} <span className="text-gray-400 font-normal">{t("ob_optional")}</span>
                 </Label>
                 <Input
                   type="number"
@@ -300,8 +306,8 @@ export default function Onboarding() {
                 />
               </div>
               <div>
-                <Label hint="NPK and other fertilizers combined">
-                  Fertilizer Usage (kg / ha / season) <span className="text-gray-400 font-normal">optional</span>
+                <Label hint={t("ob_fert_hint")}>
+                  {t("ob_fert_usage")} <span className="text-gray-400 font-normal">{t("ob_optional")}</span>
                 </Label>
                 <Input
                   type="number"
@@ -312,8 +318,8 @@ export default function Onboarding() {
                 />
               </div>
               <div>
-                <Label hint="Herbicides, pesticides, fungicides total cost">
-                  Spraying Cost (USD / ha / season) <span className="text-gray-400 font-normal">optional</span>
+                <Label hint={t("ob_spray_hint")}>
+                  {t("ob_spray_cost")} <span className="text-gray-400 font-normal">{t("ob_optional")}</span>
                 </Label>
                 <Input
                   type="number"
@@ -337,7 +343,7 @@ export default function Onboarding() {
               onClick={() => (step === 1 ? navigate("/") : setStep((s) => s - 1))}
               className="text-sm text-gray-500 hover:text-gray-700 font-medium"
             >
-              ← {step === 1 ? "Cancel" : "Back"}
+              {step === 1 ? t("ob_cancel") : t("ob_back")}
             </button>
             {step < 4 ? (
               <button
@@ -345,7 +351,7 @@ export default function Onboarding() {
                 disabled={!canNext}
                 className="px-6 py-2.5 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                Continue →
+                {t("ob_continue")}
               </button>
             ) : (
               <button
@@ -353,7 +359,7 @@ export default function Onboarding() {
                 disabled={saving}
                 className="px-6 py-2.5 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 disabled:opacity-50 transition-colors"
               >
-                {saving ? "Creating field…" : "🚀 Launch Intelligence"}
+                {saving ? t("ob_creating") : t("ob_launch")}
               </button>
             )}
           </div>

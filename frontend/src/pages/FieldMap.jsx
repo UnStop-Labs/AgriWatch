@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { getFields } from "../api/client";
 import HealthBadge from "../components/HealthBadge";
 import { usePolling } from "../hooks/usePolling";
+import { useLang } from "../context/LangContext";
 
 function ndviToColor(ndvi) {
   if (ndvi == null) return "#9ca3af";
@@ -29,6 +30,7 @@ function FlyTo({ target }) {
 
 export default function FieldMap() {
   const navigate = useNavigate();
+  const { t } = useLang();
   const [satellite, setSatellite] = useState(true);
   const [flyTarget, setFlyTarget] = useState(null);
   const fetch = useCallback(() => getFields(), []);
@@ -41,9 +43,9 @@ export default function FieldMap() {
     <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="flex items-start justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Field Map</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t("map_title")}</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Thailand demo farms — click any field polygon to inspect
+            {t("map_subtitle")}
           </p>
         </div>
         {/* Layer toggle */}
@@ -52,13 +54,13 @@ export default function FieldMap() {
             onClick={() => setSatellite(true)}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${satellite ? "bg-green-700 text-white" : "text-gray-600 hover:bg-gray-50"}`}
           >
-            🛰 Satellite
+            {t("map_satellite")}
           </button>
           <button
             onClick={() => setSatellite(false)}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${!satellite ? "bg-green-700 text-white" : "text-gray-600 hover:bg-gray-50"}`}
           >
-            🗺 Street
+            {t("map_street")}
           </button>
         </div>
       </div>
@@ -83,11 +85,11 @@ export default function FieldMap() {
       {/* Legend */}
       <div className="flex items-center gap-4 mb-3 text-xs text-gray-600">
         {[
-          { color: "#16a34a", label: "Healthy (≥0.6)" },
-          { color: "#65a30d", label: "Good (0.45–0.6)" },
-          { color: "#f59e0b", label: "Stressed (0.3–0.45)" },
-          { color: "#ef4444", label: "Critical (<0.3)" },
-          { color: "#9ca3af", label: "No data" },
+          { color: "#16a34a", label: t("map_healthy") },
+          { color: "#65a30d", label: t("map_good") },
+          { color: "#f59e0b", label: t("map_stressed") },
+          { color: "#ef4444", label: t("map_critical") },
+          { color: "#9ca3af", label: t("map_no_data") },
         ].map(({ color, label }) => (
           <div key={label} className="flex items-center gap-1.5">
             <span className="inline-block w-3 h-3 rounded-sm border border-white shadow" style={{ background: color }} />
@@ -141,22 +143,22 @@ export default function FieldMap() {
                       <HealthBadge status={field.health_status} />
                       {field.active_alert_count > 0 && (
                         <span className="text-red-600 text-xs font-semibold">
-                          ⚠ {field.active_alert_count} alert{field.active_alert_count !== 1 ? "s" : ""}
+                          ⚠ {field.active_alert_count} {field.active_alert_count !== 1 ? t("map_alerts") : t("map_alert")}
                         </span>
                       )}
                     </div>
                     <table className="w-full text-xs text-gray-700 border-t pt-2">
                       <tbody>
-                        <tr><td className="pr-3 font-medium py-0.5">NDVI</td><td>{field.latest_ndvi?.toFixed(3) ?? "—"}</td></tr>
-                        <tr><td className="pr-3 font-medium py-0.5">Soil Moisture</td><td>{field.latest_soil_moisture?.toFixed(1) ?? "—"}%</td></tr>
-                        <tr><td className="pr-3 font-medium py-0.5">Surface Temp</td><td>{field.latest_temp_c?.toFixed(1) ?? "—"}°C</td></tr>
+                        <tr><td className="pr-3 font-medium py-0.5">{t("map_ndvi")}</td><td>{field.latest_ndvi?.toFixed(3) ?? "—"}</td></tr>
+                        <tr><td className="pr-3 font-medium py-0.5">{t("map_soil_moisture")}</td><td>{field.latest_soil_moisture?.toFixed(1) ?? "—"}%</td></tr>
+                        <tr><td className="pr-3 font-medium py-0.5">{t("map_surface_temp")}</td><td>{field.latest_temp_c?.toFixed(1) ?? "—"}°C</td></tr>
                       </tbody>
                     </table>
                     <button
                       onClick={() => navigate(`/fields/${field.id}`)}
                       className="w-full mt-1 py-1.5 bg-green-700 text-white text-xs font-semibold rounded-md hover:bg-green-800 transition-colors"
                     >
-                      Open Field Intelligence →
+                      {t("map_open_intel")}
                     </button>
                   </div>
                 </Popup>

@@ -18,6 +18,7 @@ import AlertTypeIcon from "../components/AlertTypeIcon";
 import HealthBadge from "../components/HealthBadge";
 import SeverityChip from "../components/SeverityChip";
 import { usePolling } from "../hooks/usePolling";
+import { useLang } from "../context/LangContext";
 
 const RANGES = [
   { label: "24h", days: 1 },
@@ -53,6 +54,7 @@ const CustomTooltip = ({ active, payload, label, extra }) => {
 export default function FieldDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { t } = useLang();
   const [range, setRange] = useState(7);
   const [seeding, setSeeding] = useState(false);
 
@@ -106,7 +108,7 @@ export default function FieldDetail() {
 
   if (!field) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-8 text-gray-500 text-sm">Loading…</div>
+      <div className="max-w-7xl mx-auto px-4 py-8 text-gray-500 text-sm">{t("fd_loading")}</div>
     );
   }
 
@@ -119,7 +121,7 @@ export default function FieldDetail() {
             onClick={() => navigate("/fields")}
             className="text-sm text-gray-500 hover:text-gray-700 mb-2 flex items-center gap-1"
           >
-            ← Back to Fields
+            {t("fd_back")}
           </button>
           <h1 className="text-2xl font-bold text-gray-900">{field.name}</h1>
           <p className="text-sm text-gray-500 mt-1 capitalize">
@@ -133,7 +135,7 @@ export default function FieldDetail() {
             disabled={seeding}
             className="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50"
           >
-            {seeding ? "Seeding…" : "Re-seed Data"}
+            {seeding ? t("fd_seeding") : t("fd_reseed")}
           </button>
         </div>
       </div>
@@ -141,10 +143,10 @@ export default function FieldDetail() {
       {/* Metric chips */}
       <div className="flex gap-4 flex-wrap">
         {[
-          { label: "NDVI", value: field.latest_ndvi?.toFixed(3) },
-          { label: "Soil Moisture", value: field.latest_soil_moisture != null ? `${field.latest_soil_moisture.toFixed(1)}%` : null },
-          { label: "Surface Temp", value: field.latest_temp_c != null ? `${field.latest_temp_c.toFixed(1)}°C` : null },
-          { label: "Active Alerts", value: String(field.active_alert_count) },
+          { label: t("fd_ndvi"), value: field.latest_ndvi?.toFixed(3) },
+          { label: t("fd_soil_moisture"), value: field.latest_soil_moisture != null ? `${field.latest_soil_moisture.toFixed(1)}%` : null },
+          { label: t("fd_surface_temp"), value: field.latest_temp_c != null ? `${field.latest_temp_c.toFixed(1)}°C` : null },
+          { label: t("fd_active_alerts"), value: String(field.active_alert_count) },
         ].map(({ label, value }) => (
           <div key={label} className="bg-white border border-gray-200 rounded-lg px-4 py-3">
             <div className="text-xs text-gray-500">{label}</div>
@@ -159,10 +161,10 @@ export default function FieldDetail() {
           {/* Financial summary row */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { label: "Yield Forecast", value: `${intel.yield_forecast_tons}t`, sub: `${intel.yield_forecast_tons_ha} t/ha`, color: intel.yield_vs_baseline_pct >= 0 ? "text-green-600" : "text-red-600" },
-              { label: "Water Savings", value: fmt$(intel.water_savings_usd), sub: `${intel.water_savings_m3.toLocaleString()} m³`, color: "text-blue-600" },
-              { label: "Input Savings", value: fmt$(intel.fertilizer_savings_usd + intel.spray_savings_usd), sub: `${intel.fertilizer_savings_kg} kg fertilizer`, color: "text-amber-600" },
-              { label: "Total ROI", value: fmt$(intel.total_savings_usd), sub: "this season", color: "text-purple-600" },
+              { label: t("fd_yield_forecast"), value: `${intel.yield_forecast_tons}t`, sub: `${intel.yield_forecast_tons_ha} t/ha`, color: intel.yield_vs_baseline_pct >= 0 ? "text-green-600" : "text-red-600" },
+              { label: t("fd_water_savings"), value: fmt$(intel.water_savings_usd), sub: `${intel.water_savings_m3.toLocaleString()} m³`, color: "text-blue-600" },
+              { label: t("fd_input_savings"), value: fmt$(intel.fertilizer_savings_usd + intel.spray_savings_usd), sub: `${intel.fertilizer_savings_kg} kg fertilizer`, color: "text-amber-600" },
+              { label: t("fd_total_roi"), value: fmt$(intel.total_savings_usd), sub: t("fd_this_season"), color: "text-purple-600" },
             ].map(({ label, value, sub, color }) => (
               <div key={label} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
                 <p className="text-xs text-gray-400 mb-1">{label}</p>
@@ -183,20 +185,20 @@ export default function FieldDetail() {
                 <span className="text-2xl">🌾</span>
                 <div>
                   <p className="font-semibold text-gray-900 text-sm">
-                    {intel.harvest_status === "overdue" && `Harvest overdue by ${Math.abs(intel.days_to_harvest)} days`}
-                    {intel.harvest_status === "imminent" && `Harvest in ${intel.days_to_harvest} days — prepare now`}
-                    {intel.harvest_status === "upcoming" && `Harvest in ${intel.days_to_harvest} days`}
-                    {intel.harvest_status === "on_track" && `Harvest in ${intel.days_to_harvest} days — on track`}
+                    {intel.harvest_status === "overdue" && t("fd_harvest_overdue", { n: Math.abs(intel.days_to_harvest) })}
+                    {intel.harvest_status === "imminent" && t("fd_harvest_imminent", { n: intel.days_to_harvest })}
+                    {intel.harvest_status === "upcoming" && t("fd_harvest_upcoming", { n: intel.days_to_harvest })}
+                    {intel.harvest_status === "on_track" && t("fd_harvest_on_track", { n: intel.days_to_harvest })}
                   </p>
                   {intel.harvest_due && (
                     <p className="text-xs text-gray-500 mt-0.5">
-                      Expected: {new Date(intel.harvest_due).toLocaleDateString()}
+                      {t("fd_expected")} {new Date(intel.harvest_due).toLocaleDateString()}
                     </p>
                   )}
                 </div>
               </div>
               {intel.harvest_status === "overdue" && (
-                <span className="text-xs bg-red-500 text-white px-3 py-1 rounded-full font-bold">ACTION REQUIRED</span>
+                <span className="text-xs bg-red-500 text-white px-3 py-1 rounded-full font-bold">{t("fd_action_required")}</span>
               )}
             </div>
           )}
@@ -205,8 +207,8 @@ export default function FieldDetail() {
           {intel.recommendations?.length > 0 && (
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
               <div className="px-6 py-4 border-b border-gray-100">
-                <h3 className="font-semibold text-gray-800">AI Recommendations</h3>
-                <p className="text-xs text-gray-400 mt-0.5">Prioritized by financial impact</p>
+                <h3 className="font-semibold text-gray-800">{t("fd_ai_recs")}</h3>
+                <p className="text-xs text-gray-400 mt-0.5">{t("fd_by_impact")}</p>
               </div>
               <ul className="divide-y divide-gray-50">
                 {intel.recommendations.map((r, i) => (
@@ -230,7 +232,7 @@ export default function FieldDetail() {
                       </div>
                       <div className="text-right shrink-0">
                         <p className="text-base font-bold text-green-600">{fmt$(r.financial_impact_usd)}</p>
-                        <p className="text-xs text-gray-400">potential</p>
+                        <p className="text-xs text-gray-400">{t("fd_potential")}</p>
                       </div>
                     </div>
                   </li>
@@ -243,7 +245,7 @@ export default function FieldDetail() {
 
       {/* Time range selector */}
       <div className="flex items-center gap-2">
-        <span className="text-sm text-gray-500">Time range:</span>
+        <span className="text-sm text-gray-500">{t("fd_time_range")}</span>
         {RANGES.map(({ label, days }) => (
           <button
             key={label}
@@ -263,7 +265,7 @@ export default function FieldDetail() {
       <div className="space-y-4">
         {/* NDVI */}
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-          <h3 className="font-semibold text-gray-800 mb-4">NDVI — Vegetation Index</h3>
+          <h3 className="font-semibold text-gray-800 mb-4">{t("fd_ndvi_chart")}</h3>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={chartData} syncId="field-charts">
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
@@ -287,7 +289,7 @@ export default function FieldDetail() {
 
         {/* Soil Moisture */}
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-          <h3 className="font-semibold text-gray-800 mb-4">Soil Moisture (%)</h3>
+          <h3 className="font-semibold text-gray-800 mb-4">{t("fd_soil_chart")}</h3>
           <ResponsiveContainer width="100%" height={200}>
             <AreaChart data={chartData} syncId="field-charts">
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
@@ -312,7 +314,7 @@ export default function FieldDetail() {
 
         {/* Temperature */}
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-          <h3 className="font-semibold text-gray-800 mb-4">Surface Temperature (°C)</h3>
+          <h3 className="font-semibold text-gray-800 mb-4">{t("fd_temp_chart")}</h3>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={chartData} syncId="field-charts">
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
@@ -338,21 +340,21 @@ export default function FieldDetail() {
       {/* Alert History */}
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="font-semibold text-gray-800">Alert History</h3>
-          <span className="text-xs text-gray-400">{alerts?.length ?? 0} alerts</span>
+          <h3 className="font-semibold text-gray-800">{t("fd_alert_history")}</h3>
+          <span className="text-xs text-gray-400">{t("fd_alerts_count", { n: alerts?.length ?? 0 })}</span>
         </div>
         {!alerts || alerts.length === 0 ? (
-          <div className="px-6 py-8 text-center text-gray-400 text-sm">No alerts for this field</div>
+          <div className="px-6 py-8 text-center text-gray-400 text-sm">{t("fd_no_alerts")}</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-xs text-gray-500 uppercase tracking-wide border-b border-gray-100">
-                  <th className="px-6 py-2 text-left">Type</th>
-                  <th className="px-4 py-2 text-left">Severity</th>
-                  <th className="px-4 py-2 text-left">Message</th>
-                  <th className="px-4 py-2 text-left">Triggered</th>
-                  <th className="px-4 py-2 text-center">Status</th>
+                  <th className="px-6 py-2 text-left">{t("fd_col_type")}</th>
+                  <th className="px-4 py-2 text-left">{t("fd_col_severity")}</th>
+                  <th className="px-4 py-2 text-left">{t("fd_col_message")}</th>
+                  <th className="px-4 py-2 text-left">{t("fd_col_triggered")}</th>
+                  <th className="px-4 py-2 text-center">{t("fd_col_status")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -371,13 +373,13 @@ export default function FieldDetail() {
                     <td className="px-4 py-3 text-xs text-gray-500">{fmt(a.triggered_at)}</td>
                     <td className="px-4 py-3 text-center">
                       {a.acknowledged ? (
-                        <span className="text-xs text-gray-400">Acknowledged</span>
+                        <span className="text-xs text-gray-400">{t("fd_acknowledged")}</span>
                       ) : (
                         <button
                           onClick={() => handleAck(a.id)}
                           className="text-xs text-green-700 hover:underline font-medium"
                         >
-                          Acknowledge
+                          {t("fd_acknowledge")}
                         </button>
                       )}
                     </td>

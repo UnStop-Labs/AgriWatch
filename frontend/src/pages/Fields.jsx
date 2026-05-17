@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { createField, deleteField, getFields, seedField } from "../api/client";
 import HealthBadge from "../components/HealthBadge";
 import { usePolling } from "../hooks/usePolling";
+import { useLang } from "../context/LangContext";
 
 const CROP_TYPES = ["wheat", "corn", "soy", "rice", "vegetables"];
 
@@ -25,6 +26,7 @@ const DEFAULT_GEOJSON = JSON.stringify({
 
 export default function Fields() {
   const navigate = useNavigate();
+  const { t } = useLang();
   const fetch = useCallback(() => getFields(), []);
   const { data: fields, refresh } = usePolling(fetch, 60000);
   const [showForm, setShowForm] = useState(false);
@@ -62,7 +64,7 @@ export default function Fields() {
 
   async function handleDelete(e, id) {
     e.stopPropagation();
-    if (!confirm("Delete this field and all its data?")) return;
+    if (!confirm(t("fields_confirm_delete"))) return;
     await deleteField(id);
     refresh();
   }
@@ -71,14 +73,14 @@ export default function Fields() {
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Fields</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage your monitored farm fields</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t("fields_title")}</h1>
+          <p className="text-sm text-gray-500 mt-1">{t("fields_subtitle")}</p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
           className="px-4 py-2 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800"
         >
-          + Add Field
+          {t("fields_add")}
         </button>
       </div>
 
@@ -87,20 +89,20 @@ export default function Fields() {
           onSubmit={handleCreate}
           className="bg-white border border-gray-200 rounded-xl p-6 space-y-4 shadow-sm"
         >
-          <h2 className="font-semibold text-gray-800">New Field</h2>
+          <h2 className="font-semibold text-gray-800">{t("fields_new_field")}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Field Name</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">{t("fields_field_name")}</label>
               <input
                 required
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
-                placeholder="North Wheat Block"
+                placeholder={t("fields_field_name_placeholder")}
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Crop Type</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">{t("fields_crop_type")}</label>
               <select
                 value={form.crop_type}
                 onChange={(e) => setForm({ ...form, crop_type: e.target.value })}
@@ -114,7 +116,7 @@ export default function Fields() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Area (ha)</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">{t("fields_area_ha")}</label>
               <input
                 required
                 type="number"
@@ -123,7 +125,7 @@ export default function Fields() {
                 value={form.area_ha}
                 onChange={(e) => setForm({ ...form, area_ha: e.target.value })}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none"
-                placeholder="45.0"
+                placeholder={t("fields_area_placeholder")}
               />
             </div>
           </div>
@@ -133,14 +135,14 @@ export default function Fields() {
               disabled={saving}
               className="px-4 py-2 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 disabled:opacity-50"
             >
-              {saving ? "Saving…" : "Create Field"}
+              {saving ? t("fields_saving") : t("fields_create")}
             </button>
             <button
               type="button"
               onClick={() => setShowForm(false)}
               className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50"
             >
-              Cancel
+              {t("fields_cancel")}
             </button>
           </div>
         </form>
@@ -163,8 +165,8 @@ export default function Fields() {
             <div className="grid grid-cols-3 gap-2 text-center mb-4">
               {[
                 { label: "NDVI", value: f.latest_ndvi?.toFixed(3) ?? "—" },
-                { label: "Moisture", value: f.latest_soil_moisture != null ? `${f.latest_soil_moisture.toFixed(0)}%` : "—" },
-                { label: "Temp", value: f.latest_temp_c != null ? `${f.latest_temp_c.toFixed(1)}°C` : "—" },
+                { label: t("fields_moisture"), value: f.latest_soil_moisture != null ? `${f.latest_soil_moisture.toFixed(0)}%` : "—" },
+                { label: t("fields_temp"), value: f.latest_temp_c != null ? `${f.latest_temp_c.toFixed(1)}°C` : "—" },
               ].map(({ label, value }) => (
                 <div key={label} className="bg-gray-50 rounded-lg py-2">
                   <div className="text-xs text-gray-500">{label}</div>
@@ -174,7 +176,7 @@ export default function Fields() {
             </div>
             {f.active_alert_count > 0 && (
               <p className="text-xs text-red-600 font-medium mb-3">
-                ⚠ {f.active_alert_count} active alert{f.active_alert_count !== 1 ? "s" : ""}
+                ⚠ {f.active_alert_count} {f.active_alert_count !== 1 ? t("fields_active_alerts") : t("fields_active_alert")}
               </p>
             )}
             <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
@@ -183,13 +185,13 @@ export default function Fields() {
                 disabled={seeding === f.id}
                 className="flex-1 text-xs py-1.5 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50"
               >
-                {seeding === f.id ? "Seeding…" : "Re-seed Data"}
+                {seeding === f.id ? t("fields_seeding") : t("fields_reseed")}
               </button>
               <button
                 onClick={(e) => handleDelete(e, f.id)}
                 className="px-3 text-xs py-1.5 border border-red-200 text-red-600 rounded-lg hover:bg-red-50"
               >
-                Delete
+                {t("fields_delete")}
               </button>
             </div>
           </div>

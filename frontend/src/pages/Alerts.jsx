@@ -11,11 +11,13 @@ import {
 import AlertTypeIcon from "../components/AlertTypeIcon";
 import SeverityChip from "../components/SeverityChip";
 import { usePolling } from "../hooks/usePolling";
+import { useLang } from "../context/LangContext";
 
 const SEVERITIES = ["", "critical", "high", "medium", "low"];
 
 export default function Alerts() {
   const navigate = useNavigate();
+  const { t } = useLang();
   const [fieldFilter, setFieldFilter] = useState("");
   const [severityFilter, setSeverityFilter] = useState("");
   const [showAcknowledged, setShowAcknowledged] = useState(false);
@@ -48,7 +50,7 @@ export default function Alerts() {
   }
 
   async function handleAckAll() {
-    if (!confirm("Acknowledge all visible alerts?")) return;
+    if (!confirm(t("alerts_ack_all_confirm"))) return;
     await acknowledgeAll(fieldFilter || undefined);
     refreshAlerts();
     refreshStats();
@@ -65,15 +67,15 @@ export default function Alerts() {
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Alerts</h1>
-          <p className="text-sm text-gray-500 mt-1">All anomalies detected across your fields</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t("alerts_title")}</h1>
+          <p className="text-sm text-gray-500 mt-1">{t("alerts_subtitle")}</p>
         </div>
         {alerts?.length > 0 && (
           <button
             onClick={handleAckAll}
             className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50"
           >
-            Acknowledge All Visible
+            {t("alerts_ack_all")}
           </button>
         )}
       </div>
@@ -88,16 +90,16 @@ export default function Alerts() {
                 severityColors[s] ?? ""
               }`}
             >
-              <span>{s}</span>
+              <span>{t(`severity_${s}`)}</span>
               <span className="font-bold">{stats.by_severity?.[s] ?? 0}</span>
             </div>
           ))}
           <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-gray-300 text-sm text-gray-600">
-            <span>Total</span>
+            <span>{t("alerts_total")}</span>
             <span className="font-bold">{stats.total}</span>
           </div>
           <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-gray-300 text-sm text-gray-600">
-            <span>Unacknowledged</span>
+            <span>{t("alerts_unacknowledged")}</span>
             <span className="font-bold text-red-600">{stats.unacknowledged}</span>
           </div>
         </div>
@@ -110,7 +112,7 @@ export default function Alerts() {
           onChange={(e) => setFieldFilter(e.target.value)}
           className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none"
         >
-          <option value="">All Fields</option>
+          <option value="">{t("alerts_all_fields")}</option>
           {fields?.map((f) => (
             <option key={f.id} value={f.id}>
               {f.name}
@@ -124,7 +126,7 @@ export default function Alerts() {
         >
           {SEVERITIES.map((s) => (
             <option key={s} value={s}>
-              {s ? s.charAt(0).toUpperCase() + s.slice(1) : "All Severities"}
+              {s ? t(`severity_${s}`) : t("alerts_all_severities")}
             </option>
           ))}
         </select>
@@ -135,10 +137,10 @@ export default function Alerts() {
             onChange={(e) => setShowAcknowledged(e.target.checked)}
             className="rounded border-gray-300 text-green-600"
           />
-          Show acknowledged
+          {t("alerts_show_acknowledged")}
         </label>
         <span className="text-xs text-gray-400 ml-auto">
-          {alerts?.length ?? 0} alerts shown
+          {t("alerts_shown", { n: alerts?.length ?? 0 })}
         </span>
       </div>
 
@@ -146,18 +148,18 @@ export default function Alerts() {
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
         {!alerts || alerts.length === 0 ? (
           <div className="px-6 py-16 text-center text-gray-400 text-sm">
-            No alerts match your filters
+            {t("alerts_no_match")}
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="text-xs text-gray-500 uppercase tracking-wide border-b border-gray-100 bg-gray-50">
-                <th className="px-6 py-3 text-left">Severity</th>
-                <th className="px-4 py-3 text-left">Type</th>
-                <th className="px-4 py-3 text-left">Field</th>
-                <th className="px-4 py-3 text-left">Message</th>
-                <th className="px-4 py-3 text-left">Triggered</th>
-                <th className="px-4 py-3 text-center">Action</th>
+                <th className="px-6 py-3 text-left">{t("alerts_col_severity")}</th>
+                <th className="px-4 py-3 text-left">{t("alerts_col_type")}</th>
+                <th className="px-4 py-3 text-left">{t("alerts_col_field")}</th>
+                <th className="px-4 py-3 text-left">{t("alerts_col_message")}</th>
+                <th className="px-4 py-3 text-left">{t("alerts_col_triggered")}</th>
+                <th className="px-4 py-3 text-center">{t("alerts_col_action")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -194,7 +196,7 @@ export default function Alerts() {
                     </td>
                     <td className="px-4 py-3 text-center">
                       {a.acknowledged ? (
-                        <span className="text-xs text-gray-400">Done</span>
+                        <span className="text-xs text-gray-400">{t("alerts_done")}</span>
                       ) : (
                         <button
                           onClick={(e) => {
@@ -203,7 +205,7 @@ export default function Alerts() {
                           }}
                           className="text-xs text-green-700 hover:underline font-medium"
                         >
-                          Acknowledge
+                          {t("alerts_acknowledge")}
                         </button>
                       )}
                     </td>
@@ -211,10 +213,10 @@ export default function Alerts() {
                   {expanded === a.id && (
                     <tr key={`${a.id}-exp`} className="bg-gray-50">
                       <td colSpan={6} className="px-6 py-4 text-sm text-gray-700">
-                        <strong>Full message:</strong> {a.message}
+                        <strong>{t("alerts_full_message")}</strong> {a.message}
                         {a.acknowledged_at && (
                           <span className="ml-4 text-xs text-gray-400">
-                            Acknowledged {formatDistanceToNow(new Date(a.acknowledged_at + "Z"), { addSuffix: true })}
+                            {t("alerts_ack_time")} {formatDistanceToNow(new Date(a.acknowledged_at + "Z"), { addSuffix: true })}
                           </span>
                         )}
                       </td>

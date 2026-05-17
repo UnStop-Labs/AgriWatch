@@ -1,3 +1,5 @@
+import { useLang } from "../context/LangContext";
+
 const icons = {
   ndvi_low: "🍂",
   ndvi_rapid_decline: "📉",
@@ -9,5 +11,7 @@ const icons = {
 };
 
 export default function AlertTypeIcon({ type }) {
-  return <span title={type}>{icons[type] ?? "🔔"}</span>;
+  const { t } = useLang();
+  const label = t(`alert_type_${type}`, {}) || type;
+  return <span title={label}>{icons[type] ?? "🔔"}</span>;
 }

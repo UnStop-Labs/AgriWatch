@@ -11,6 +11,7 @@ import {
 import AlertTypeIcon from "../components/AlertTypeIcon";
 import SeverityChip from "../components/SeverityChip";
 import { usePolling } from "../hooks/usePolling";
+import { useLang } from "../context/LangContext";
 
 function fmt$(n) {
   if (n == null) return "—";
@@ -19,12 +20,13 @@ function fmt$(n) {
 }
 
 function HarvestBadge({ status, days }) {
+  const { t } = useLang();
   if (status === "unknown") return null;
   const cfg = {
-    overdue: { cls: "bg-red-100 text-red-700 border-red-200", label: `${Math.abs(days)}d overdue` },
-    imminent: { cls: "bg-orange-100 text-orange-700 border-orange-200", label: `${days}d to harvest` },
-    upcoming: { cls: "bg-yellow-100 text-yellow-700 border-yellow-200", label: `${days}d to harvest` },
-    on_track: { cls: "bg-green-100 text-green-700 border-green-200", label: `${days}d to harvest` },
+    overdue: { cls: "bg-red-100 text-red-700 border-red-200", label: t("harvest_overdue", { n: Math.abs(days) }) },
+    imminent: { cls: "bg-orange-100 text-orange-700 border-orange-200", label: t("harvest_days", { n: days }) },
+    upcoming: { cls: "bg-yellow-100 text-yellow-700 border-yellow-200", label: t("harvest_days", { n: days }) },
+    on_track: { cls: "bg-green-100 text-green-700 border-green-200", label: t("harvest_days", { n: days }) },
   }[status] || { cls: "bg-gray-100 text-gray-500", label: "—" };
   return (
     <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${cfg.cls}`}>
@@ -34,6 +36,7 @@ function HarvestBadge({ status, days }) {
 }
 
 function FieldCard({ field, onClick }) {
+  const { t } = useLang();
   const harvest = field.harvest_status;
   const isOverdue = harvest === "overdue";
   const borderClass = isOverdue
@@ -63,24 +66,24 @@ function FieldCard({ field, onClick }) {
         </div>
         {isOverdue && (
           <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded-full font-bold">
-            OVERDUE
+            {t("dash_overdue")}
           </span>
         )}
       </div>
 
       <div className="grid grid-cols-2 gap-3 mb-3">
         <div>
-          <p className="text-xs text-gray-400">Yield Forecast</p>
+          <p className="text-xs text-gray-400">{t("dash_yield_forecast")}</p>
           <p className="text-lg font-bold text-gray-900">{field.yield_forecast_tons}t</p>
           <p className={`text-xs font-medium ${yieldColor}`}>
             {field.yield_vs_baseline_pct >= 0 ? "+" : ""}
-            {field.yield_vs_baseline_pct}% vs baseline
+            {field.yield_vs_baseline_pct}% {t("dash_vs_baseline_pct")}
           </p>
         </div>
         <div>
-          <p className="text-xs text-gray-400">Est. Savings</p>
+          <p className="text-xs text-gray-400">{t("dash_est_savings")}</p>
           <p className="text-lg font-bold text-green-600">{fmt$(field.total_savings_usd)}</p>
-          <p className="text-xs text-gray-400">this season</p>
+          <p className="text-xs text-gray-400">{t("dash_season")}</p>
         </div>
       </div>
 
@@ -113,6 +116,7 @@ function FinancialKPI({ label, value, sub, icon, color }) {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { t } = useLang();
   const [ingesting, setIngesting] = useState(false);
 
   const fetchFinancials = useCallback(() => getDashboardFinancials(), []);
@@ -161,22 +165,22 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Operations Overview</h1>
-          <p className="text-sm text-gray-500 mt-1">Financial impact · Yield forecast · Field intelligence</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t("dash_title")}</h1>
+          <p className="text-sm text-gray-500 mt-1">{t("dash_subtitle")}</p>
         </div>
         <div className="flex gap-3">
           <button
             onClick={() => navigate("/onboarding")}
             className="px-4 py-2 border border-green-700 text-green-700 rounded-lg text-sm font-medium hover:bg-green-50 transition-colors"
           >
-            + Add Field
+            {t("dash_add_field")}
           </button>
           <button
             onClick={handleIngest}
             disabled={ingesting}
             className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 disabled:opacity-50 transition-colors"
           >
-            {ingesting ? "Ingesting…" : "⟳ Refresh Data"}
+            {ingesting ? t("dash_ingesting") : t("dash_refresh")}
           </button>
         </div>
       </div>
@@ -184,33 +188,33 @@ export default function Dashboard() {
       {/* Financial KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <FinancialKPI
-          label="Total Yield Forecast"
+          label={t("dash_yield")}
           value={financials ? `${financials.total_yield_forecast_tons}t` : "—"}
-          sub={`across ${financials?.fields?.length ?? 0} fields`}
+          sub={t("dash_across_fields", { n: financials?.fields?.length ?? 0 })}
           icon="🌾"
           color="green"
         />
         <FinancialKPI
-          label="Water Savings"
+          label={t("dash_water_savings")}
           value={fmt$(financials?.total_water_savings_usd)}
-          sub="vs unoptimized baseline"
+          sub={t("dash_vs_baseline")}
           icon="💧"
           color="blue"
         />
         <FinancialKPI
-          label="Input Savings"
+          label={t("dash_input_savings")}
           value={fmt$(
             (financials?.total_fertilizer_savings_usd ?? 0) +
               (financials?.total_spray_savings_usd ?? 0)
           )}
-          sub="fertilizer + spray"
+          sub={t("dash_fertilizer_spray")}
           icon="🧪"
           color="amber"
         />
         <FinancialKPI
-          label="Total Est. ROI"
+          label={t("dash_roi")}
           value={fmt$(financials?.total_savings_usd)}
-          sub="this season"
+          sub={t("dash_this_season")}
           icon="📈"
           color="purple"
         />
@@ -220,25 +224,25 @@ export default function Dashboard() {
       <div className="flex gap-4 flex-wrap">
         {[
           {
-            label: "Active Alerts",
+            label: t("dash_active_alerts"),
             value: totalAlerts,
             color: totalAlerts > 0 ? "text-red-600" : "text-green-600",
             icon: "🔔",
           },
           {
-            label: "Critical Fields",
+            label: t("dash_critical_fields"),
             value: criticalFields,
             color: criticalFields > 0 ? "text-red-600" : "text-green-600",
             icon: "⚠️",
           },
           {
-            label: "Overdue Harvest",
+            label: t("dash_overdue_harvest"),
             value: overdueFields,
             color: overdueFields > 0 ? "text-red-600" : "text-green-600",
             icon: "🚨",
           },
           {
-            label: "Fields Monitored",
+            label: t("dash_fields_monitored"),
             value: financials?.fields?.length ?? "—",
             color: "text-gray-700",
             icon: "🗺️",
@@ -255,16 +259,16 @@ export default function Dashboard() {
       {/* Field Cards */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-gray-800">Field Intelligence</h2>
+          <h2 className="font-semibold text-gray-800">{t("dash_field_intel")}</h2>
           <button onClick={() => navigate("/fields")} className="text-sm text-green-700 hover:underline">
-            Manage fields →
+            {t("dash_manage_fields")}
           </button>
         </div>
         {!financials?.fields?.length ? (
           <div className="bg-white border border-gray-200 rounded-xl p-12 text-center text-gray-400 text-sm">
-            No fields yet —{" "}
+            {t("dash_no_fields")}{" "}
             <button onClick={() => navigate("/onboarding")} className="text-green-700 hover:underline">
-              add your first field
+              {t("dash_add_first")}
             </button>
           </div>
         ) : (
@@ -285,13 +289,13 @@ export default function Dashboard() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
             <div>
-              <h2 className="font-semibold text-gray-800">Top Recommendations</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Sorted by financial impact</p>
+              <h2 className="font-semibold text-gray-800">{t("dash_top_recs")}</h2>
+              <p className="text-xs text-gray-400 mt-0.5">{t("dash_by_impact")}</p>
             </div>
           </div>
           {topRecs.length === 0 ? (
             <div className="px-6 py-10 text-center text-gray-400 text-sm">
-              All fields performing optimally
+              {t("dash_all_optimal")}
             </div>
           ) : (
             <ul className="divide-y divide-gray-50">
@@ -320,7 +324,7 @@ export default function Dashboard() {
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-sm font-bold text-green-600">{fmt$(r.financial_impact_usd)}</p>
-                      <p className="text-xs text-gray-400">impact</p>
+                      <p className="text-xs text-gray-400">{t("dash_impact")}</p>
                     </div>
                   </div>
                 </li>
@@ -332,14 +336,14 @@ export default function Dashboard() {
         {/* Alert Feed */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200">
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-800">Active Alerts</h2>
+            <h2 className="font-semibold text-gray-800">{t("dash_active_alerts_title")}</h2>
             <button onClick={() => navigate("/alerts")} className="text-sm text-green-700 hover:underline">
-              View all →
+              {t("dash_view_all")}
             </button>
           </div>
           {!alerts || alerts.length === 0 ? (
             <div className="px-6 py-10 text-center text-gray-400 text-sm">
-              No active alerts — all fields are healthy
+              {t("dash_no_alerts")}
             </div>
           ) : (
             <ul className="divide-y divide-gray-50">
@@ -364,7 +368,7 @@ export default function Dashboard() {
                     onClick={(e) => handleAck(e, a.id)}
                     className="text-xs text-gray-400 hover:text-gray-600 whitespace-nowrap"
                   >
-                    Dismiss
+                    {t("dash_dismiss")}
                   </button>
                 </li>
               ))}
