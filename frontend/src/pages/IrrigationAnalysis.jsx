@@ -7,6 +7,13 @@ const REFRESH_INTERVAL = 30;
 const RAI_TO_HA = 0.16; // 1 rai = 1,600 m² = 0.16 ha
 const STATUS_COLORS = { critical: "#dc2626", dry: "#f97316", optimal: "#22c55e", wet: "#3b82f6" };
 
+const STATUS_META = {
+  critical: { icon: "🔴", label: "Critical – Irrigate Now", color: "#dc2626" },
+  dry:      { icon: "🟠", label: "Dry – Irrigate Soon",    color: "#f97316" },
+  optimal:  { icon: "🟢", label: "Optimal",                color: "#22c55e" },
+  wet:      { icon: "🔵", label: "Wet – No Irrigation",    color: "#3b82f6" },
+};
+
 // Presets in rai
 const PRESETS = [
   { label: "Chiang Rai Rice",    lat: 19.921,  lng: 99.832,  areaRai: 325 },
