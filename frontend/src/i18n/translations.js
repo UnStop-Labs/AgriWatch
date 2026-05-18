@@ -325,6 +325,7 @@ export const translations = {
     an_choose_field: "— choose a field —",
     an_analyze_btn: "Analyze Field",
     an_thai_farms: "Thai farms:",
+    an_crop_type: "Crop Type",
   },
 
   th: {
@@ -653,5 +654,6 @@ export const translations = {
     an_choose_field: "— เลือกแปลง —",
     an_analyze_btn: "วิเคราะห์แปลง",
     an_thai_farms: "ไร่ตัวอย่าง:",
+    an_crop_type: "ประเภทพืช",
   },
 };

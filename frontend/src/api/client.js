@@ -47,6 +47,9 @@ export const getDashboardFinancials = () =>
 export const analyzeIrrigation = (lat, lng, area_ha = 10) =>
   api.get("/api/irrigation/analyze", { params: { lat, lng, area_ha } }).then((r) => r.data).catch(normalize);
 
+export const analyzeField = (lat, lng, area_ha, crop_type = "rice") =>
+  api.get("/api/analytics/analyze", { params: { lat, lng, area_ha, crop_type } }).then((r) => r.data).catch(normalize);
+
 export const getDisease = (fieldId) =>
   api.get(`/api/analytics/disease/${fieldId}`).then((r) => r.data).catch(normalize);
 

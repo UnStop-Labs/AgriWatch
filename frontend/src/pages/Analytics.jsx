@@ -1,15 +1,19 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { GeoJSON, MapContainer, TileLayer, useMap } from "react-leaflet";
-import { getDisease, getFields, getYieldPrediction } from "../api/client";
+import { useEffect } from "react";
+import { analyzeField } from "../api/client";
 import { useLang } from "../context/LangContext";
 
-// Thai farm presets (same as other pages)
+const RAI_TO_HA = 0.16;
+
 const PRESETS = [
-  { label: "Chiang Rai Rice",   id_hint: "Chiang Rai Rice Paddy" },
-  { label: "Chiang Mai Corn",   id_hint: "Chiang Mai Corn Field" },
-  { label: "Suphan Buri Soy",   id_hint: "Suphan Buri Soybean Plot" },
-  { label: "Nakhon Pathom Veg", id_hint: "Nakhon Pathom Vegetable Farm" },
+  { label: "Chiang Rai Rice",   lat: 19.921, lng: 99.832,  areaRai: 325, crop: "rice" },
+  { label: "Chiang Mai Corn",   lat: 18.791, lng: 98.970,  areaRai: 425, crop: "corn" },
+  { label: "Suphan Buri Soy",   lat: 14.471, lng: 100.131, areaRai: 256, crop: "soy" },
+  { label: "Nakhon Pathom Veg", lat: 13.823, lng: 100.062, areaRai: 150, crop: "vegetables" },
 ];
+
+const CROPS = ["rice", "corn", "soy", "wheat", "vegetables"];
 
 function Spinner() {
   return <div className="w-5 h-5 rounded-full border-2 border-green-500 border-t-transparent animate-spin" />;
@@ -18,17 +22,13 @@ function Spinner() {
 function Sparkline({ data, valueKey, color = "#16a34a", height = 60 }) {
   if (!data || data.length < 2) return null;
   const vals = data.map((d) => d[valueKey]);
-  const mn = Math.min(...vals);
-  const mx = Math.max(...vals);
-  const range = mx - mn || 1;
+  const mn = Math.min(...vals), mx = Math.max(...vals), range = mx - mn || 1;
   const W = 260, H = height;
-  const pts = vals
-    .map((v, i) => {
-      const x = (i / (vals.length - 1)) * W;
-      const y = H - ((v - mn) / range) * (H - 8) - 4;
-      return `${x},${y}`;
-    })
-    .join(" ");
+  const pts = vals.map((v, i) => {
+    const x = (i / (vals.length - 1)) * W;
+    const y = H - ((v - mn) / range) * (H - 8) - 4;
+    return `${x},${y}`;
+  }).join(" ");
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="overflow-visible">
       <defs>
@@ -46,24 +46,21 @@ function Sparkline({ data, valueKey, color = "#16a34a", height = 60 }) {
 function FlyToBounds({ features }) {
   const map = useMap();
   useEffect(() => {
-    if (!features || features.length === 0) return;
+    if (!features?.length) return;
     const lats = [], lngs = [];
     features.forEach((f) => {
       f.geometry.coordinates[0].forEach(([lng, lat]) => { lats.push(lat); lngs.push(lng); });
     });
-    if (lats.length) {
-      map.fitBounds(
-        [[Math.min(...lats), Math.min(...lngs)], [Math.max(...lats), Math.max(...lngs)]],
-        { padding: [20, 20] }
-      );
-    }
+    if (lats.length) map.fitBounds(
+      [[Math.min(...lats), Math.min(...lngs)], [Math.max(...lats), Math.max(...lngs)]],
+      { padding: [20, 20] }
+    );
   }, [features, map]);
   return null;
 }
 
 function ScoreGauge({ score, color = "#16a34a", label }) {
-  const r = 36, circ = 2 * Math.PI * r;
-  const fill = circ * (score / 100);
+  const r = 36, circ = 2 * Math.PI * r, fill = circ * (score / 100);
   return (
     <div className="flex flex-col items-center">
       <svg width="88" height="88" viewBox="0 0 88 88">
@@ -78,64 +75,58 @@ function ScoreGauge({ score, color = "#16a34a", label }) {
 }
 
 const RISK_CFG = {
-  low:      { cls: "bg-green-100 text-green-700 border-green-200" },
-  moderate: { cls: "bg-yellow-100 text-yellow-700 border-yellow-200" },
-  high:     { cls: "bg-orange-100 text-orange-700 border-orange-200" },
-  critical: { cls: "bg-red-100 text-red-700 border-red-200" },
+  low:      "bg-green-100 text-green-700 border-green-200",
+  moderate: "bg-yellow-100 text-yellow-700 border-yellow-200",
+  high:     "bg-orange-100 text-orange-700 border-orange-200",
+  critical: "bg-red-100 text-red-700 border-red-200",
 };
-
-const SEVERITY_CFG = {
-  high:   "bg-red-100 text-red-700",
-  medium: "bg-yellow-100 text-yellow-700",
-  low:    "bg-blue-100 text-blue-700",
+const SEV_CFG = {
+  high: "bg-red-100 text-red-700", medium: "bg-yellow-100 text-yellow-700", low: "bg-blue-100 text-blue-700",
 };
 
 export default function Analytics() {
   const { t } = useLang();
-  const [fields, setFields] = useState([]);
-  const [selectedId, setSelectedId] = useState("");
+  const [lat, setLat]         = useState("");
+  const [lng, setLng]         = useState("");
+  const [areaRai, setAreaRai] = useState("10");
+  const [crop, setCrop]       = useState("rice");
   const [activePreset, setActivePreset] = useState(null);
-  const [tab, setTab] = useState("disease");
-  const [disease, setDisease] = useState(null);
-  const [yieldData, setYieldData] = useState(null);
+  const [tab, setTab]         = useState("disease");
+  const [result, setResult]   = useState(null);   // { disease, yield }
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError]     = useState(null);
   const [satellite, setSatellite] = useState(true);
 
-  useEffect(() => {
-    getFields().then((fs) => setFields(fs || [])).catch(() => {});
-  }, []);
+  async function handleAnalyze(e) {
+    e?.preventDefault();
+    const latN = parseFloat(lat), lngN = parseFloat(lng);
+    if (isNaN(latN) || isNaN(lngN)) return;
+    const haN = (parseFloat(areaRai) || 10) * RAI_TO_HA;
 
-  async function handleAnalyze() {
-    if (!selectedId) return;
     setLoading(true);
     setError(null);
-    setDisease(null);
-    setYieldData(null);
+    setResult(null);
     try {
-      const [d, y] = await Promise.all([
-        getDisease(Number(selectedId)),
-        getYieldPrediction(Number(selectedId)),
-      ]);
-      setDisease(d);
-      setYieldData(y);
+      const data = await analyzeField(latN, lngN, haN, crop);
+      setResult(data);
     } catch (e) {
-      setError(e.message || "Analysis failed — make sure the backend is running.");
+      setError(e.message || "Analysis failed");
     } finally {
       setLoading(false);
     }
   }
 
-  function handlePreset(preset) {
-    const match = fields.find((f) => f.name === preset.id_hint);
-    if (match) {
-      setSelectedId(String(match.id));
-      setActivePreset(preset.label);
-    }
+  function handlePreset(p) {
+    setLat(String(p.lat));
+    setLng(String(p.lng));
+    setAreaRai(String(p.areaRai));
+    setCrop(p.crop);
+    setActivePreset(p.label);
   }
 
-  const activeData = tab === "disease" ? disease : yieldData;
-  const heatmap = activeData?.heatmap;
+  const disease   = result?.disease;
+  const yieldData = result?.yield;
+  const heatmap   = tab === "disease" ? disease?.heatmap : yieldData?.heatmap;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
@@ -145,7 +136,6 @@ export default function Analytics() {
           <h1 className="text-2xl font-bold text-gray-900">{t("an_title")}</h1>
           <p className="text-sm text-gray-500 mt-1">{t("an_subtitle")}</p>
         </div>
-        {/* Layer toggle */}
         <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
           <button onClick={() => setSatellite(true)}
             className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${satellite ? "bg-white shadow text-gray-900" : "text-gray-500"}`}>
@@ -158,46 +148,51 @@ export default function Analytics() {
         </div>
       </div>
 
-      {/* ── Control bar ── */}
+      {/* ── Input bar ── */}
       <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4 shadow-sm">
-        {/* Field selector + Analyze */}
-        <div className="flex items-end gap-3 flex-wrap">
+        <form onSubmit={handleAnalyze} className="flex items-end gap-3 flex-wrap">
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">{t("an_select_field")}</label>
-            <select
-              value={selectedId}
-              onChange={(e) => { setSelectedId(e.target.value); setActivePreset(null); }}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:outline-none bg-white min-w-[220px]"
-            >
-              <option value="">{t("an_choose_field")}</option>
-              {fields.map((f) => (
-                <option key={f.id} value={f.id}>{f.name}</option>
-              ))}
+            <label className="block text-xs font-medium text-gray-500 mb-1">{t("irr_lat")}</label>
+            <input type="number" step="any" placeholder="e.g. 18.791"
+              value={lat} onChange={(e) => { setLat(e.target.value); setActivePreset(null); }} required
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-36 focus:ring-2 focus:ring-green-500 focus:outline-none" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">{t("irr_lng")}</label>
+            <input type="number" step="any" placeholder="e.g. 98.970"
+              value={lng} onChange={(e) => { setLng(e.target.value); setActivePreset(null); }} required
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-36 focus:ring-2 focus:ring-green-500 focus:outline-none" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">{t("irr_area")}</label>
+            <input type="number" min="1" max="5000" step="1" placeholder="10"
+              value={areaRai} onChange={(e) => setAreaRai(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-28 focus:ring-2 focus:ring-green-500 focus:outline-none" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">{t("an_crop_type")}</label>
+            <select value={crop} onChange={(e) => setCrop(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:outline-none bg-white capitalize">
+              {CROPS.map((c) => <option key={c} value={c} className="capitalize">{c}</option>)}
             </select>
           </div>
-          <button
-            onClick={handleAnalyze}
-            disabled={!selectedId || loading}
-            className="flex items-center gap-2 px-5 py-2 bg-green-700 text-white rounded-lg text-sm font-semibold hover:bg-green-800 disabled:opacity-50 transition-colors"
-          >
+          <button type="submit" disabled={loading}
+            className="flex items-center gap-2 px-5 py-2 bg-green-700 text-white rounded-lg text-sm font-semibold hover:bg-green-800 disabled:opacity-50 transition-colors">
             {loading ? <Spinner /> : "🔬"}
             {loading ? t("an_loading") : t("an_analyze_btn")}
           </button>
-        </div>
+        </form>
 
         {/* Thai farm presets */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-gray-400">{t("an_thai_farms")}</span>
           {PRESETS.map((p) => (
-            <button
-              key={p.label}
-              onClick={() => handlePreset(p)}
+            <button key={p.label} onClick={() => handlePreset(p)}
               className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                 activePreset === p.label
                   ? "bg-green-700 text-white border-green-700"
                   : "border-gray-300 text-gray-600 hover:border-green-500 hover:text-green-700"
-              }`}
-            >
+              }`}>
               {p.label}
             </button>
           ))}
@@ -211,8 +206,8 @@ export default function Analytics() {
         </div>
       )}
 
-      {/* Tabs — only show after data loaded */}
-      {(disease || yieldData) && (
+      {/* Tabs */}
+      {result && (
         <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
           <button onClick={() => setTab("disease")}
             className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-all ${tab === "disease" ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"}`}>
@@ -228,18 +223,15 @@ export default function Analytics() {
       {/* ── DISEASE TAB ── */}
       {!loading && tab === "disease" && disease && (
         <div className="space-y-4">
-          {/* KPI row */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col items-center justify-center">
-              <ScoreGauge
-                score={disease.health_score}
+              <ScoreGauge score={disease.health_score}
                 color={disease.health_score >= 70 ? "#16a34a" : disease.health_score >= 50 ? "#f59e0b" : "#dc2626"}
-                label={t("an_health_score")}
-              />
+                label={t("an_health_score")} />
             </div>
             <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col justify-center gap-2">
               <p className="text-xs text-gray-400 uppercase tracking-wide">{t("an_risk_level")}</p>
-              <span className={`text-xs px-2.5 py-1 rounded-full border font-semibold w-fit ${RISK_CFG[disease.risk_level]?.cls}`}>
+              <span className={`text-xs px-2.5 py-1 rounded-full border font-semibold w-fit ${RISK_CFG[disease.risk_level]}`}>
                 {t(`an_risk_${disease.risk_level}`)}
               </span>
               <p className="text-2xl font-bold text-gray-900">{disease.disease_risk_pct}%</p>
@@ -260,38 +252,29 @@ export default function Analytics() {
             </div>
           </div>
 
-          {/* Map + side panel */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="lg:col-span-2 h-[420px] rounded-xl overflow-hidden border border-gray-200 shadow-sm">
               <MapContainer center={[15, 100]} zoom={6} style={{ height: "100%", width: "100%" }}>
                 <FlyToBounds features={heatmap?.features} />
-                {satellite ? (
-                  <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" attribution="Tiles © Esri" maxZoom={19} />
-                ) : (
-                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap" />
-                )}
+                {satellite
+                  ? <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" attribution="Tiles © Esri" maxZoom={19} />
+                  : <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap" />}
                 {heatmap && (
-                  <GeoJSON
-                    key={disease.analyzed_at}
-                    data={heatmap}
-                    style={(f) => ({ fillColor: f.properties.color, fillOpacity: 0.6, color: "rgba(255,255,255,0.2)", weight: 0.5 })}
+                  <GeoJSON key={disease.analyzed_at} data={heatmap}
+                    style={(f) => ({ fillColor: f.properties.color, fillOpacity: 0.62, color: "rgba(255,255,255,0.2)", weight: 0.5 })}
                     onEachFeature={(f, layer) => {
                       layer.on("mouseover", () => layer.setStyle({ fillOpacity: 0.85 }));
-                      layer.on("mouseout",  () => layer.setStyle({ fillOpacity: 0.6 }));
-                      layer.bindPopup(
-                        `<div style="font-family:sans-serif;min-width:160px">
-                          <p style="font-weight:700;margin:0 0 4px;text-transform:capitalize">${f.properties.status}</p>
-                          <p style="font-size:11px;color:#555;margin:0">Risk score: ${f.properties.risk_pct}%</p>
-                        </div>`, { maxWidth: 200 }
-                      );
-                    }}
-                  />
+                      layer.on("mouseout",  () => layer.setStyle({ fillOpacity: 0.62 }));
+                      layer.bindPopup(`<div style="font-family:sans-serif;min-width:160px">
+                        <p style="font-weight:700;margin:0 0 4px;text-transform:capitalize">${f.properties.status}</p>
+                        <p style="font-size:11px;color:#555;margin:0">Risk score: ${f.properties.risk_pct}%</p>
+                      </div>`, { maxWidth: 200 });
+                    }} />
                 )}
               </MapContainer>
             </div>
 
             <div className="space-y-4">
-              {/* Legend */}
               <div className="bg-white rounded-xl border border-gray-200 p-4">
                 <p className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-3">{t("an_legend")}</p>
                 {[
@@ -309,35 +292,24 @@ export default function Analytics() {
                   </div>
                 ))}
               </div>
-
-              {/* Detected stress */}
               <div className="bg-white rounded-xl border border-gray-200 p-4">
                 <p className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-3">{t("an_detected_stress")}</p>
                 {disease.detected_stress.length === 0 ? (
                   <p className="text-sm text-green-600 font-medium">✓ {t("an_no_stress")}</p>
-                ) : (
-                  <div className="space-y-3">
-                    {disease.detected_stress.map((s) => (
-                      <div key={s.id} className="border border-gray-100 rounded-lg p-3">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-sm font-medium text-gray-800">{s.icon} {s.name}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${SEVERITY_CFG[s.severity]}`}>{s.severity}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                          <span>{s.affected_area_pct}% {t("an_area_affected")}</span>
-                          <span>·</span>
-                          <span>{Math.round(s.confidence * 100)}% {t("an_confidence")}</span>
-                        </div>
-                        <p className="text-xs text-gray-400 mt-1 italic">{s.recommendation}</p>
-                      </div>
-                    ))}
+                ) : disease.detected_stress.map((s) => (
+                  <div key={s.id} className="border border-gray-100 rounded-lg p-3 mb-2 last:mb-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium text-gray-800">{s.icon} {s.name}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${SEV_CFG[s.severity]}`}>{s.severity}</span>
+                    </div>
+                    <p className="text-xs text-gray-500">{s.affected_area_pct}% {t("an_area_affected")} · {Math.round(s.confidence * 100)}% {t("an_confidence")}</p>
+                    <p className="text-xs text-gray-400 mt-1 italic">{s.recommendation}</p>
                   </div>
-                )}
+                ))}
               </div>
             </div>
           </div>
 
-          {/* Trend */}
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <p className="text-sm font-semibold text-gray-700 mb-1">{t("an_health_trend")}</p>
             <p className="text-xs text-gray-400 mb-3">{t("an_14d")}</p>
@@ -353,7 +325,6 @@ export default function Analytics() {
       {/* ── YIELD TAB ── */}
       {!loading && tab === "yield" && yieldData && (
         <div className="space-y-4">
-          {/* KPI row */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border border-green-200 p-4">
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">🌾 {t("an_total_yield")}</p>
@@ -371,48 +342,38 @@ export default function Analytics() {
               </div>
             </div>
             <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-xl border border-amber-200 p-4 flex flex-col items-center justify-center">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">⭐ {t("an_quality")}</p>
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1 self-start">⭐ {t("an_quality")}</p>
               <ScoreGauge score={yieldData.quality_score} color="#f59e0b" label={t("an_quality_score")} />
             </div>
             <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-xl border border-purple-200 p-4">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">📅 {t("an_harvest")}</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {yieldData.days_to_harvest != null
-                  ? yieldData.days_to_harvest < 0 ? t("an_overdue") : `${yieldData.days_to_harvest}d`
-                  : "—"}
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">💰 {t("an_revenue_est")}</p>
+              <p className="text-2xl font-bold text-green-600">
+                ${yieldData.revenue_estimate_usd >= 1000
+                  ? `${(yieldData.revenue_estimate_usd / 1000).toFixed(1)}k`
+                  : yieldData.revenue_estimate_usd}
               </p>
-              <p className="text-xs text-gray-500 mt-1">
-                {yieldData.harvest_date ? new Date(yieldData.harvest_date).toLocaleDateString() : t("an_no_date")}
-              </p>
+              <p className="text-xs text-gray-400 mt-1">{t("an_estimated_season")}</p>
             </div>
           </div>
 
-          {/* Map + side panel */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="lg:col-span-2 h-[420px] rounded-xl overflow-hidden border border-gray-200 shadow-sm">
               <MapContainer center={[15, 100]} zoom={6} style={{ height: "100%", width: "100%" }}>
                 <FlyToBounds features={yieldData.heatmap?.features} />
-                {satellite ? (
-                  <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" attribution="Tiles © Esri" maxZoom={19} />
-                ) : (
-                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap" />
-                )}
+                {satellite
+                  ? <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" attribution="Tiles © Esri" maxZoom={19} />
+                  : <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap" />}
                 {yieldData.heatmap && (
-                  <GeoJSON
-                    key={yieldData.analyzed_at}
-                    data={yieldData.heatmap}
-                    style={(f) => ({ fillColor: f.properties.color, fillOpacity: 0.6, color: "rgba(255,255,255,0.2)", weight: 0.5 })}
+                  <GeoJSON key={yieldData.analyzed_at} data={yieldData.heatmap}
+                    style={(f) => ({ fillColor: f.properties.color, fillOpacity: 0.62, color: "rgba(255,255,255,0.2)", weight: 0.5 })}
                     onEachFeature={(f, layer) => {
                       layer.on("mouseover", () => layer.setStyle({ fillOpacity: 0.85 }));
-                      layer.on("mouseout",  () => layer.setStyle({ fillOpacity: 0.6 }));
-                      layer.bindPopup(
-                        `<div style="font-family:sans-serif;min-width:160px">
-                          <p style="font-weight:700;margin:0 0 4px;text-transform:capitalize">${f.properties.zone} productivity</p>
-                          <p style="font-size:11px;color:#555;margin:0">Index: ${f.properties.productivity}%</p>
-                        </div>`, { maxWidth: 200 }
-                      );
-                    }}
-                  />
+                      layer.on("mouseout",  () => layer.setStyle({ fillOpacity: 0.62 }));
+                      layer.bindPopup(`<div style="font-family:sans-serif;min-width:160px">
+                        <p style="font-weight:700;margin:0 0 4px;text-transform:capitalize">${f.properties.zone} productivity</p>
+                        <p style="font-size:11px;color:#555;margin:0">Index: ${f.properties.productivity}%</p>
+                      </div>`, { maxWidth: 200 });
+                    }} />
                 )}
               </MapContainer>
             </div>
@@ -430,29 +391,17 @@ export default function Analytics() {
                     <div key={key} className="mb-3">
                       <div className="flex justify-between text-xs mb-1">
                         <span className="flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
-                          {label}
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />{label}
                         </span>
                         <span className="font-bold" style={{ color }}>{pct}%</span>
                       </div>
                       <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
                       </div>
                     </div>
                   );
                 })}
               </div>
-
-              <div className="bg-white rounded-xl border border-gray-200 p-4">
-                <p className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-2">{t("an_revenue_est")}</p>
-                <p className="text-2xl font-bold text-green-600">
-                  ${yieldData.revenue_estimate_usd >= 1000
-                    ? `${(yieldData.revenue_estimate_usd / 1000).toFixed(1)}k`
-                    : yieldData.revenue_estimate_usd}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">{t("an_estimated_season")}</p>
-              </div>
-
               <div className="bg-white rounded-xl border border-gray-200 p-4">
                 <p className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-3">{t("an_productivity_map")}</p>
                 {[
@@ -461,15 +410,13 @@ export default function Analytics() {
                   { color: "#f97316", label: t("an_zone_low") },
                 ].map(({ color, label }) => (
                   <div key={label} className="flex items-center gap-2 text-xs text-gray-600 mb-1.5">
-                    <span className="w-3.5 h-3.5 rounded-sm" style={{ background: color, opacity: 0.75 }} />
-                    {label}
+                    <span className="w-3.5 h-3.5 rounded-sm" style={{ background: color, opacity: 0.75 }} />{label}
                   </div>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* Trend */}
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <p className="text-sm font-semibold text-gray-700 mb-1">{t("an_yield_trend")}</p>
             <p className="text-xs text-gray-400 mb-3">{t("an_14d")}</p>
@@ -483,7 +430,7 @@ export default function Analytics() {
       )}
 
       {/* Empty state */}
-      {!loading && !error && !disease && !yieldData && (
+      {!loading && !error && !result && (
         <div className="text-center py-16 text-gray-400">
           <span className="text-5xl block mb-3">🔬</span>
           <p className="text-lg font-semibold text-gray-600">{t("an_empty_title")}</p>
