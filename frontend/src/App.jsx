@@ -6,6 +6,7 @@ import Dashboard from "./pages/Dashboard";
 import FieldDetail from "./pages/FieldDetail";
 import FieldMap from "./pages/FieldMap";
 import Fields from "./pages/Fields";
+import Analytics from "./pages/Analytics";
 import IrrigationAnalysis from "./pages/IrrigationAnalysis";
 import Onboarding from "./pages/Onboarding";
 import Settings from "./pages/Settings";
@@ -25,6 +26,7 @@ function Layout() {
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/irrigation" element={<IrrigationAnalysis />} />
+          <Route path="/analytics" element={<Analytics />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>

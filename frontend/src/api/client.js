@@ -47,6 +47,12 @@ export const getDashboardFinancials = () =>
 export const analyzeIrrigation = (lat, lng, area_ha = 10) =>
   api.get("/api/irrigation/analyze", { params: { lat, lng, area_ha } }).then((r) => r.data).catch(normalize);
 
+export const getDisease = (fieldId) =>
+  api.get(`/api/analytics/disease/${fieldId}`).then((r) => r.data).catch(normalize);
+
+export const getYieldPrediction = (fieldId) =>
+  api.get(`/api/analytics/yield/${fieldId}`).then((r) => r.data).catch(normalize);
+
 export const getLineTokenStatus = () => api.get("/api/system/line-token").then((r) => r.data).catch(normalize);
 export const setLineToken = (token) => api.put("/api/system/line-token", { token }).then((r) => r.data).catch(normalize);
 export const testLineNotification = () => api.post("/api/system/line-test").then((r) => r.data).catch(normalize);

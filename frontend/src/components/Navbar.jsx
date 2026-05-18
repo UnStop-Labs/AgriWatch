@@ -44,6 +44,7 @@ export default function Navbar() {
             {link("/", t("nav_dashboard"))}
             {link("/map", t("nav_map"))}
             {link("/irrigation", t("nav_irrigation"))}
+            {link("/analytics", t("nav_analytics"))}
             {link("/fields", t("nav_fields"))}
 
             {/* Alerts with badge */}
