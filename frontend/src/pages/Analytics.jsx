@@ -3,6 +3,14 @@ import { GeoJSON, MapContainer, TileLayer, useMap } from "react-leaflet";
 import { getDisease, getFields, getYieldPrediction } from "../api/client";
 import { useLang } from "../context/LangContext";
 
+// Thai farm presets (same as other pages)
+const PRESETS = [
+  { label: "Chiang Rai Rice",   id_hint: "Chiang Rai Rice Paddy" },
+  { label: "Chiang Mai Corn",   id_hint: "Chiang Mai Corn Field" },
+  { label: "Suphan Buri Soy",   id_hint: "Suphan Buri Soybean Plot" },
+  { label: "Nakhon Pathom Veg", id_hint: "Nakhon Pathom Vegetable Farm" },
+];
+
 function Spinner() {
   return <div className="w-5 h-5 rounded-full border-2 border-green-500 border-t-transparent animate-spin" />;
 }
@@ -13,8 +21,7 @@ function Sparkline({ data, valueKey, color = "#16a34a", height = 60 }) {
   const mn = Math.min(...vals);
   const mx = Math.max(...vals);
   const range = mx - mn || 1;
-  const W = 260;
-  const H = height;
+  const W = 260, H = height;
   const pts = vals
     .map((v, i) => {
       const x = (i / (vals.length - 1)) * W;
@@ -30,10 +37,7 @@ function Sparkline({ data, valueKey, color = "#16a34a", height = 60 }) {
           <stop offset="100%" stopColor={color} stopOpacity="0.02" />
         </linearGradient>
       </defs>
-      <polygon
-        points={`0,${H} ${pts} ${W},${H}`}
-        fill={`url(#grad-${valueKey})`}
-      />
+      <polygon points={`0,${H} ${pts} ${W},${H}`} fill={`url(#grad-${valueKey})`} />
       <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
     </svg>
   );
@@ -45,17 +49,13 @@ function FlyToBounds({ features }) {
     if (!features || features.length === 0) return;
     const lats = [], lngs = [];
     features.forEach((f) => {
-      f.geometry.coordinates[0].forEach(([lng, lat]) => {
-        lats.push(lat);
-        lngs.push(lng);
-      });
+      f.geometry.coordinates[0].forEach(([lng, lat]) => { lats.push(lat); lngs.push(lng); });
     });
     if (lats.length) {
-      const bounds = [
-        [Math.min(...lats), Math.min(...lngs)],
-        [Math.max(...lats), Math.max(...lngs)],
-      ];
-      map.fitBounds(bounds, { padding: [20, 20] });
+      map.fitBounds(
+        [[Math.min(...lats), Math.min(...lngs)], [Math.max(...lats), Math.max(...lngs)]],
+        { padding: [20, 20] }
+      );
     }
   }, [features, map]);
   return null;
@@ -68,12 +68,8 @@ function ScoreGauge({ score, color = "#16a34a", label }) {
     <div className="flex flex-col items-center">
       <svg width="88" height="88" viewBox="0 0 88 88">
         <circle cx="44" cy="44" r={r} fill="none" stroke="#e5e7eb" strokeWidth="8" />
-        <circle
-          cx="44" cy="44" r={r} fill="none" stroke={color} strokeWidth="8"
-          strokeDasharray={`${fill} ${circ}`}
-          strokeLinecap="round"
-          transform="rotate(-90 44 44)"
-        />
+        <circle cx="44" cy="44" r={r} fill="none" stroke={color} strokeWidth="8"
+          strokeDasharray={`${fill} ${circ}`} strokeLinecap="round" transform="rotate(-90 44 44)" />
         <text x="44" y="48" textAnchor="middle" fontSize="18" fontWeight="bold" fill="#111827">{score}</text>
       </svg>
       <span className="text-xs text-gray-500 mt-1">{label}</span>
@@ -82,10 +78,10 @@ function ScoreGauge({ score, color = "#16a34a", label }) {
 }
 
 const RISK_CFG = {
-  low:      { cls: "bg-green-100 text-green-700 border-green-200",   label: "Low Risk" },
-  moderate: { cls: "bg-yellow-100 text-yellow-700 border-yellow-200", label: "Moderate Risk" },
-  high:     { cls: "bg-orange-100 text-orange-700 border-orange-200", label: "High Risk" },
-  critical: { cls: "bg-red-100 text-red-700 border-red-200",         label: "Critical Risk" },
+  low:      { cls: "bg-green-100 text-green-700 border-green-200" },
+  moderate: { cls: "bg-yellow-100 text-yellow-700 border-yellow-200" },
+  high:     { cls: "bg-orange-100 text-orange-700 border-orange-200" },
+  critical: { cls: "bg-red-100 text-red-700 border-red-200" },
 };
 
 const SEVERITY_CFG = {
@@ -97,29 +93,46 @@ const SEVERITY_CFG = {
 export default function Analytics() {
   const { t } = useLang();
   const [fields, setFields] = useState([]);
-  const [selectedId, setSelectedId] = useState(null);
-  const [tab, setTab] = useState("disease"); // "disease" | "yield"
+  const [selectedId, setSelectedId] = useState("");
+  const [activePreset, setActivePreset] = useState(null);
+  const [tab, setTab] = useState("disease");
   const [disease, setDisease] = useState(null);
   const [yieldData, setYieldData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [satellite, setSatellite] = useState(true);
 
   useEffect(() => {
-    getFields().then((fs) => {
-      setFields(fs || []);
-      if (fs && fs.length > 0) setSelectedId(fs[0].id);
-    });
+    getFields().then((fs) => setFields(fs || [])).catch(() => {});
   }, []);
 
-  useEffect(() => {
+  async function handleAnalyze() {
     if (!selectedId) return;
     setLoading(true);
+    setError(null);
     setDisease(null);
     setYieldData(null);
-    Promise.all([getDisease(selectedId), getYieldPrediction(selectedId)])
-      .then(([d, y]) => { setDisease(d); setYieldData(y); })
-      .finally(() => setLoading(false));
-  }, [selectedId]);
+    try {
+      const [d, y] = await Promise.all([
+        getDisease(Number(selectedId)),
+        getYieldPrediction(Number(selectedId)),
+      ]);
+      setDisease(d);
+      setYieldData(y);
+    } catch (e) {
+      setError(e.message || "Analysis failed — make sure the backend is running.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handlePreset(preset) {
+    const match = fields.find((f) => f.name === preset.id_hint);
+    if (match) {
+      setSelectedId(String(match.id));
+      setActivePreset(preset.label);
+    }
+  }
 
   const activeData = tab === "disease" ? disease : yieldData;
   const heatmap = activeData?.heatmap;
@@ -132,50 +145,83 @@ export default function Analytics() {
           <h1 className="text-2xl font-bold text-gray-900">{t("an_title")}</h1>
           <p className="text-sm text-gray-500 mt-1">{t("an_subtitle")}</p>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Field selector */}
-          <select
-            value={selectedId || ""}
-            onChange={(e) => setSelectedId(Number(e.target.value))}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:outline-none bg-white"
-          >
-            {fields.map((f) => (
-              <option key={f.id} value={f.id}>{f.name}</option>
-            ))}
-          </select>
-          {/* Layer toggle */}
-          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-            <button onClick={() => setSatellite(true)}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${satellite ? "bg-white shadow text-gray-900" : "text-gray-500"}`}>
-              🛰 {t("an_satellite")}
-            </button>
-            <button onClick={() => setSatellite(false)}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${!satellite ? "bg-white shadow text-gray-900" : "text-gray-500"}`}>
-              🗺 {t("an_street")}
-            </button>
-          </div>
+        {/* Layer toggle */}
+        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+          <button onClick={() => setSatellite(true)}
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${satellite ? "bg-white shadow text-gray-900" : "text-gray-500"}`}>
+            🛰 {t("an_satellite")}
+          </button>
+          <button onClick={() => setSatellite(false)}
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${!satellite ? "bg-white shadow text-gray-900" : "text-gray-500"}`}>
+            🗺 {t("an_street")}
+          </button>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
-        <button
-          onClick={() => setTab("disease")}
-          className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-all ${tab === "disease" ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"}`}
-        >
-          🦠 {t("an_tab_disease")}
-        </button>
-        <button
-          onClick={() => setTab("yield")}
-          className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-all ${tab === "yield" ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"}`}
-        >
-          📈 {t("an_tab_yield")}
-        </button>
+      {/* ── Control bar ── */}
+      <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4 shadow-sm">
+        {/* Field selector + Analyze */}
+        <div className="flex items-end gap-3 flex-wrap">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">{t("an_select_field")}</label>
+            <select
+              value={selectedId}
+              onChange={(e) => { setSelectedId(e.target.value); setActivePreset(null); }}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:outline-none bg-white min-w-[220px]"
+            >
+              <option value="">{t("an_choose_field")}</option>
+              {fields.map((f) => (
+                <option key={f.id} value={f.id}>{f.name}</option>
+              ))}
+            </select>
+          </div>
+          <button
+            onClick={handleAnalyze}
+            disabled={!selectedId || loading}
+            className="flex items-center gap-2 px-5 py-2 bg-green-700 text-white rounded-lg text-sm font-semibold hover:bg-green-800 disabled:opacity-50 transition-colors"
+          >
+            {loading ? <Spinner /> : "🔬"}
+            {loading ? t("an_loading") : t("an_analyze_btn")}
+          </button>
+        </div>
+
+        {/* Thai farm presets */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-gray-400">{t("an_thai_farms")}</span>
+          {PRESETS.map((p) => (
+            <button
+              key={p.label}
+              onClick={() => handlePreset(p)}
+              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                activePreset === p.label
+                  ? "bg-green-700 text-white border-green-700"
+                  : "border-gray-300 text-gray-600 hover:border-green-500 hover:text-green-700"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {loading && (
-        <div className="flex items-center gap-3 text-sm text-gray-500 py-4">
-          <Spinner /> {t("an_loading")}
+      {/* Error */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-5 py-4">
+          ⚠ {error}
+        </div>
+      )}
+
+      {/* Tabs — only show after data loaded */}
+      {(disease || yieldData) && (
+        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+          <button onClick={() => setTab("disease")}
+            className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-all ${tab === "disease" ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"}`}>
+            🦠 {t("an_tab_disease")}
+          </button>
+          <button onClick={() => setTab("yield")}
+            className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-all ${tab === "yield" ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"}`}>
+            📈 {t("an_tab_yield")}
+          </button>
         </div>
       )}
 
@@ -184,7 +230,7 @@ export default function Analytics() {
         <div className="space-y-4">
           {/* KPI row */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col items-center">
+            <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col items-center justify-center">
               <ScoreGauge
                 score={disease.health_score}
                 color={disease.health_score >= 70 ? "#16a34a" : disease.health_score >= 50 ? "#f59e0b" : "#dc2626"}
@@ -204,7 +250,7 @@ export default function Analytics() {
               <p className="text-2xl font-bold text-gray-900">{disease.avg_ndvi}</p>
               <p className="text-xs text-gray-400">{t("an_30d_avg")}</p>
               <div className="h-1.5 bg-gray-100 rounded-full mt-1 overflow-hidden">
-                <div className="h-full rounded-full bg-green-500 transition-all" style={{ width: `${Math.min(100, disease.avg_ndvi * 125)}%` }} />
+                <div className="h-full rounded-full bg-green-500" style={{ width: `${Math.min(100, disease.avg_ndvi * 125)}%` }} />
               </div>
             </div>
             <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col justify-center gap-1">
@@ -214,22 +260,15 @@ export default function Analytics() {
             </div>
           </div>
 
-          {/* Map + Panels */}
+          {/* Map + side panel */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Map */}
             <div className="lg:col-span-2 h-[420px] rounded-xl overflow-hidden border border-gray-200 shadow-sm">
               <MapContainer center={[15, 100]} zoom={6} style={{ height: "100%", width: "100%" }}>
                 <FlyToBounds features={heatmap?.features} />
                 {satellite ? (
-                  <TileLayer
-                    url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                    attribution="Tiles © Esri" maxZoom={19}
-                  />
+                  <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" attribution="Tiles © Esri" maxZoom={19} />
                 ) : (
-                  <TileLayer
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    attribution='© OpenStreetMap'
-                  />
+                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap" />
                 )}
                 {heatmap && (
                   <GeoJSON
@@ -243,8 +282,7 @@ export default function Analytics() {
                         `<div style="font-family:sans-serif;min-width:160px">
                           <p style="font-weight:700;margin:0 0 4px;text-transform:capitalize">${f.properties.status}</p>
                           <p style="font-size:11px;color:#555;margin:0">Risk score: ${f.properties.risk_pct}%</p>
-                        </div>`,
-                        { maxWidth: 200 }
+                        </div>`, { maxWidth: 200 }
                       );
                     }}
                   />
@@ -252,7 +290,6 @@ export default function Analytics() {
               </MapContainer>
             </div>
 
-            {/* Side panel */}
             <div className="space-y-4">
               {/* Legend */}
               <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -284,9 +321,7 @@ export default function Analytics() {
                       <div key={s.id} className="border border-gray-100 rounded-lg p-3">
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-sm font-medium text-gray-800">{s.icon} {s.name}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${SEVERITY_CFG[s.severity]}`}>
-                            {s.severity}
-                          </span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${SEVERITY_CFG[s.severity]}`}>{s.severity}</span>
                         </div>
                         <div className="flex items-center gap-2 text-xs text-gray-500">
                           <span>{s.affected_area_pct}% {t("an_area_affected")}</span>
@@ -302,7 +337,7 @@ export default function Analytics() {
             </div>
           </div>
 
-          {/* Trend chart */}
+          {/* Trend */}
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <p className="text-sm font-semibold text-gray-700 mb-1">{t("an_health_trend")}</p>
             <p className="text-xs text-gray-400 mb-3">{t("an_14d")}</p>
@@ -335,7 +370,7 @@ export default function Analytics() {
                 <div className="h-full bg-blue-500 rounded-full" style={{ width: `${yieldData.confidence_pct}%` }} />
               </div>
             </div>
-            <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-xl border border-amber-200 p-4">
+            <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-xl border border-amber-200 p-4 flex flex-col items-center justify-center">
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">⭐ {t("an_quality")}</p>
               <ScoreGauge score={yieldData.quality_score} color="#f59e0b" label={t("an_quality_score")} />
             </div>
@@ -343,9 +378,7 @@ export default function Analytics() {
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">📅 {t("an_harvest")}</p>
               <p className="text-2xl font-bold text-gray-900">
                 {yieldData.days_to_harvest != null
-                  ? yieldData.days_to_harvest < 0
-                    ? t("an_overdue")
-                    : `${yieldData.days_to_harvest}d`
+                  ? yieldData.days_to_harvest < 0 ? t("an_overdue") : `${yieldData.days_to_harvest}d`
                   : "—"}
               </p>
               <p className="text-xs text-gray-500 mt-1">
@@ -354,22 +387,15 @@ export default function Analytics() {
             </div>
           </div>
 
-          {/* Map + Panels */}
+          {/* Map + side panel */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Map */}
             <div className="lg:col-span-2 h-[420px] rounded-xl overflow-hidden border border-gray-200 shadow-sm">
               <MapContainer center={[15, 100]} zoom={6} style={{ height: "100%", width: "100%" }}>
                 <FlyToBounds features={yieldData.heatmap?.features} />
                 {satellite ? (
-                  <TileLayer
-                    url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                    attribution="Tiles © Esri" maxZoom={19}
-                  />
+                  <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" attribution="Tiles © Esri" maxZoom={19} />
                 ) : (
-                  <TileLayer
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    attribution='© OpenStreetMap'
-                  />
+                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap" />
                 )}
                 {yieldData.heatmap && (
                   <GeoJSON
@@ -383,8 +409,7 @@ export default function Analytics() {
                         `<div style="font-family:sans-serif;min-width:160px">
                           <p style="font-weight:700;margin:0 0 4px;text-transform:capitalize">${f.properties.zone} productivity</p>
                           <p style="font-size:11px;color:#555;margin:0">Index: ${f.properties.productivity}%</p>
-                        </div>`,
-                        { maxWidth: 200 }
+                        </div>`, { maxWidth: 200 }
                       );
                     }}
                   />
@@ -392,9 +417,7 @@ export default function Analytics() {
               </MapContainer>
             </div>
 
-            {/* Side panel */}
             <div className="space-y-4">
-              {/* Zone breakdown */}
               <div className="bg-white rounded-xl border border-gray-200 p-4">
                 <p className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-3">{t("an_zone_breakdown")}</p>
                 {[
@@ -420,7 +443,6 @@ export default function Analytics() {
                 })}
               </div>
 
-              {/* Revenue estimate */}
               <div className="bg-white rounded-xl border border-gray-200 p-4">
                 <p className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-2">{t("an_revenue_est")}</p>
                 <p className="text-2xl font-bold text-green-600">
@@ -431,7 +453,6 @@ export default function Analytics() {
                 <p className="text-xs text-gray-400 mt-1">{t("an_estimated_season")}</p>
               </div>
 
-              {/* Yield legend */}
               <div className="bg-white rounded-xl border border-gray-200 p-4">
                 <p className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-3">{t("an_productivity_map")}</p>
                 {[
@@ -448,7 +469,7 @@ export default function Analytics() {
             </div>
           </div>
 
-          {/* Trend chart */}
+          {/* Trend */}
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <p className="text-sm font-semibold text-gray-700 mb-1">{t("an_yield_trend")}</p>
             <p className="text-xs text-gray-400 mb-3">{t("an_14d")}</p>
@@ -462,10 +483,10 @@ export default function Analytics() {
       )}
 
       {/* Empty state */}
-      {!loading && !activeData && (
+      {!loading && !error && !disease && !yieldData && (
         <div className="text-center py-16 text-gray-400">
           <span className="text-5xl block mb-3">🔬</span>
-          <p className="text-lg font-semibold">{t("an_empty_title")}</p>
+          <p className="text-lg font-semibold text-gray-600">{t("an_empty_title")}</p>
           <p className="text-sm mt-1">{t("an_empty_sub")}</p>
         </div>
       )}

@@ -321,6 +321,10 @@ export const translations = {
     an_yield_trend: "14-Day Yield Trend",
     an_empty_title: "Select a field to analyze",
     an_empty_sub: "Choose a field from the dropdown above",
+    an_select_field: "Select Field",
+    an_choose_field: "— choose a field —",
+    an_analyze_btn: "Analyze Field",
+    an_thai_farms: "Thai farms:",
   },
 
   th: {
@@ -645,5 +649,9 @@ export const translations = {
     an_yield_trend: "แนวโน้มผลผลิต 14 วัน",
     an_empty_title: "เลือกแปลงเพื่อวิเคราะห์",
     an_empty_sub: "เลือกแปลงจากเมนูด้านบน",
+    an_select_field: "เลือกแปลง",
+    an_choose_field: "— เลือกแปลง —",
+    an_analyze_btn: "วิเคราะห์แปลง",
+    an_thai_farms: "ไร่ตัวอย่าง:",
   },
 };
